@@ -3,4 +3,5 @@ pandas
 numpy
 pyarrow
 mlflow
+scikit-learn
 pytest

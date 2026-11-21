@@ -141,3 +141,16 @@ def onset_evaluation(
         "false_alarms_per_100k": false_alarms / onset * 100_000 if onset else float("nan"),
         "packet_recall": float((alerts & malicious).sum() / n_malicious) if n_malicious else float("nan"),
     }
+
+
+def ranking_metrics(scores: np.ndarray, labels: np.ndarray) -> dict:
+    """ROC-AUC and PR-AUC. These do not use a threshold."""
+    from sklearn.metrics import average_precision_score, roc_auc_score
+
+    labels = np.asarray(labels)
+    if labels.min() == labels.max():
+        return {"roc_auc": float("nan"), "pr_auc": float("nan")}
+    return {
+        "roc_auc": float(roc_auc_score(labels, scores)),
+        "pr_auc": float(average_precision_score(labels, scores)),
+    }

@@ -32,6 +32,8 @@ summary.json                       row counts and attack episodes
 4. In notebook 01, select **Save Version > Save & Run All (Commit)** to keep the output.
 5. Import `notebooks/02_baseline_anomaly.ipynb`, add the output of notebook 01 as input,
    and run all cells. It trains the baseline detector and reports the detection delay.
+6. Import `notebooks/03_supervised_leave_one_out.ipynb` with the same input. It trains the
+   supervised models on eight captures and tests each model on the ninth.
 
 ## Dataset facts (from the ETL summary)
 
@@ -48,6 +50,7 @@ notebooks/            Kaggle notebooks
 src/foxtrack/etl.py       CSV to Parquet with Spark
 src/foxtrack/split.py     train / calibration / test ranges for each capture
 src/foxtrack/anomaly.py   baseline: scaler + PCA reconstruction error (Spark MLlib)
+src/foxtrack/supervised.py  logistic regression and gradient-boosted trees, leave one capture out
 src/foxtrack/metrics.py   detection delay, alert logic, false alarms
 tests/
 ```
