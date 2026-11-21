@@ -25,6 +25,11 @@ from foxtrack.metrics import find_episodes
 
 EXPECTED_FEATURES = 115
 
+# Spark divides a large plain CSV into one part for each CPU core. Row position
+# is reliable only if each file is one partition. Both settings are necessary:
+# Spark uses min(maxPartitionBytes, max(openCostInBytes, total bytes / cores)).
+ONE_PARTITION_BYTES = str(256 * 1024**3)
+
 
 @dataclass
 class Capture:
@@ -42,8 +47,8 @@ def build_spark(app_name: str = "foxtrack", driver_memory: str = "20g"):
         .master("local[*]")
         .config("spark.driver.memory", driver_memory)
         .config("spark.sql.shuffle.partitions", "8")
-        # One partition for each input file. Row position is then reliable.
-        .config("spark.sql.files.maxPartitionBytes", "256g")
+        .config("spark.sql.files.maxPartitionBytes", ONE_PARTITION_BYTES)
+        .config("spark.sql.files.openCostInBytes", ONE_PARTITION_BYTES)
         .config("spark.sql.parquet.compression.codec", "zstd")
         .config("spark.ui.showConsoleProgress", "false")
         .getOrCreate()
@@ -187,6 +192,9 @@ def convert_capture(spark, cap: Capture, out_dir: str | Path, merge_gap: int = 1
 def convert_all(spark, root: str | Path, out_dir: str | Path, workers: int = 4, merge_gap: int = 1000) -> pd.DataFrame:
     """Convert all captures. Each capture is one Spark task, so run them in parallel."""
     captures = discover(root)
+    # Set again here, because the caller can supply a different Spark session.
+    spark.conf.set("spark.sql.files.maxPartitionBytes", ONE_PARTITION_BYTES)
+    spark.conf.set("spark.sql.files.openCostInBytes", ONE_PARTITION_BYTES)
     with ThreadPoolExecutor(max_workers=workers) as pool:
         rows = list(pool.map(lambda c: convert_capture(spark, c, out_dir, merge_gap), captures))
     out_dir = Path(out_dir)

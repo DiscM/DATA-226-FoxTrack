@@ -95,3 +95,18 @@ def test_row_count_mismatch_fails(spark, tmp_path):
     _write(root / "Fuzzing" / "Fuzzing_labels.csv", "\n".join(["0"] * 40) + "\n")
     with pytest.raises(RuntimeError, match="50 feature rows but 40 labels"):
         etl.convert_all(spark, root, tmp_path / "out")
+
+
+def test_large_plain_csv_keeps_row_sequence(spark, tmp_path):
+    # A plain CSV larger than a few MB: Spark divides it into parts by default.
+    n_rows = 30_000
+    root = tmp_path / "raw"
+    _write(root / "SYN DoS" / "SYN_DoS_dataset.csv", _csv(_features(n_rows, 4)))
+    _write(root / "SYN DoS" / "SYN_DoS_labels.csv", "\n".join(["0"] * n_rows) + "\n")
+    assert (root / "SYN DoS" / "SYN_DoS_dataset.csv").stat().st_size > 20e6
+
+    etl.convert_all(spark, root, tmp_path / "out")
+    out = spark.read.parquet(str(tmp_path / "out" / "features")).select("idx", "f0").toPandas()
+    out = out.sort_values("idx")
+    assert out["idx"].tolist() == list(range(n_rows))
+    assert out["f0"].tolist() == list(range(n_rows))
