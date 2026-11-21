@@ -47,8 +47,6 @@ def build_spark(app_name: str = "foxtrack", driver_memory: str = "20g"):
         .master("local[*]")
         .config("spark.driver.memory", driver_memory)
         .config("spark.sql.shuffle.partitions", "8")
-        .config("spark.sql.files.maxPartitionBytes", ONE_PARTITION_BYTES)
-        .config("spark.sql.files.openCostInBytes", ONE_PARTITION_BYTES)
         .config("spark.sql.parquet.compression.codec", "zstd")
         .config("spark.ui.showConsoleProgress", "false")
         .getOrCreate()
@@ -192,11 +190,17 @@ def convert_capture(spark, cap: Capture, out_dir: str | Path, merge_gap: int = 1
 def convert_all(spark, root: str | Path, out_dir: str | Path, workers: int = 4, merge_gap: int = 1000) -> pd.DataFrame:
     """Convert all captures. Each capture is one Spark task, so run them in parallel."""
     captures = discover(root)
-    # Set again here, because the caller can supply a different Spark session.
-    spark.conf.set("spark.sql.files.maxPartitionBytes", ONE_PARTITION_BYTES)
-    spark.conf.set("spark.sql.files.openCostInBytes", ONE_PARTITION_BYTES)
-    with ThreadPoolExecutor(max_workers=workers) as pool:
-        rows = list(pool.map(lambda c: convert_capture(spark, c, out_dir, merge_gap), captures))
+    keys = ("spark.sql.files.maxPartitionBytes", "spark.sql.files.openCostInBytes")
+    before = {k: spark.conf.get(k) for k in keys}
+    for k in keys:
+        spark.conf.set(k, ONE_PARTITION_BYTES)
+    try:
+        with ThreadPoolExecutor(max_workers=workers) as pool:
+            rows = list(pool.map(lambda c: convert_capture(spark, c, out_dir, merge_gap), captures))
+    finally:
+        # Other work (EDA, training) must read files in parallel again.
+        for k in keys:
+            spark.conf.set(k, before[k])
     out_dir = Path(out_dir)
     (out_dir / "summary.json").write_text(json.dumps(rows, indent=2))
     return pd.DataFrame(rows).drop(columns=["episode_bounds"])

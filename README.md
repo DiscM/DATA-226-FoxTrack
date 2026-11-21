@@ -29,11 +29,25 @@ summary.json                       row counts and attack episodes
 
 `idx` is the packet position in the capture. It is the time axis of the project.
 
+4. In notebook 01, select **Save Version > Save & Run All (Commit)** to keep the output.
+5. Import `notebooks/02_baseline_anomaly.ipynb`, add the output of notebook 01 as input,
+   and run all cells. It trains the baseline detector and reports the detection delay.
+
+## Dataset facts (from the ETL summary)
+
+- 21.0 million packets in nine captures, 115 features each.
+- Each capture starts with a long benign period (1.3 to 2.7 million packets;
+  Mirai: 121,621), then the attack starts one time.
+- A supervised model with a time split in one capture thus cannot test the
+  delay at the attack start. The baseline trains on benign packets only.
+
 ## Layout
 
 ```
 notebooks/            Kaggle notebooks
 src/foxtrack/etl.py       CSV to Parquet with Spark
+src/foxtrack/split.py     train / calibration / test ranges for each capture
+src/foxtrack/anomaly.py   baseline: scaler + PCA reconstruction error (Spark MLlib)
 src/foxtrack/metrics.py   detection delay, alert logic, false alarms
 tests/
 ```

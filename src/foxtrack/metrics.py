@@ -108,3 +108,36 @@ def evaluate(
     }
     out.update(false_alarm_stats(alerts, labels))
     return out
+
+
+def onset_evaluation(
+    scores: np.ndarray,
+    labels: np.ndarray,
+    onset: int,
+    threshold: float,
+    k: int = 1,
+    n: int = 1,
+) -> dict:
+    """Evaluate one capture that has one attack start at position ``onset``.
+
+    False alarms are counted only before the attack start. An alert on a
+    benign packet during the attack is not a false alarm for the operator.
+    """
+    labels = np.asarray(labels)
+    alerts = alerts_k_of_n(scores, threshold, k, n)
+    after = np.flatnonzero(alerts[onset:])
+    detected = after.size > 0
+    false_alarms = int(alerts[:onset].sum())
+    malicious = labels == 1
+    n_malicious = int(malicious.sum())
+    return {
+        "threshold": threshold,
+        "k": k,
+        "n": n,
+        "detected": bool(detected),
+        "delay_packets": int(after[0]) if detected else None,
+        "benign_packets_before_attack": int(onset),
+        "false_alarms_before_attack": false_alarms,
+        "false_alarms_per_100k": false_alarms / onset * 100_000 if onset else float("nan"),
+        "packet_recall": float((alerts & malicious).sum() / n_malicious) if n_malicious else float("nan"),
+    }
