@@ -8,13 +8,13 @@
   :root {
     --page: #f9f9f7; --surface: #fcfcfb; --ink: #0b0b0b; --ink-2: #52514e; --muted: #898781;
     --grid: #e1e0d9; --axis: #c3c2b7; --border: rgba(11,11,11,0.10);
-    --series: #2a78d6; --critical: #d03b3b; --good: #0ca30c; --good-text: #006300; --attack-band: rgba(208,59,59,0.07);
+    --series: #2a78d6; --critical: #d03b3b; --warning: #fab219; --good: #0ca30c; --good-text: #006300; --attack-band: rgba(208,59,59,0.07);
   }
   @media (prefers-color-scheme: dark) {
     :root {
       --page: #0d0d0d; --surface: #1a1a19; --ink: #f0efec; --ink-2: #c3c2b7; --muted: #898781;
       --grid: #2c2c2a; --axis: #383835; --border: rgba(255,255,255,0.10);
-      --series: #3987e5; --critical: #d03b3b; --good: #0ca30c; --good-text: #0ca30c; --attack-band: rgba(208,59,59,0.13);
+      --series: #3987e5; --critical: #d03b3b; --warning: #fab219; --good: #0ca30c; --good-text: #0ca30c; --attack-band: rgba(208,59,59,0.13);
     }
   }
   * { box-sizing: border-box; }
@@ -33,6 +33,7 @@
   .status { display: flex; align-items: center; gap: 10px; font-weight: 600; font-size: 16px; margin-bottom: 12px; }
   .status .icon { width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; color: #fff; font-size: 13px; background: var(--good); flex: none; }
   .status.alert .icon { background: var(--critical); }
+  .status.unsure .icon { background: var(--warning); color: #0b0b0b; }
   .status small { font-weight: 400; color: var(--ink-2); font-size: 13px; }
   .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin-bottom: 12px; }
   .tile .value { font-size: 26px; font-weight: 650; font-variant-numeric: tabular-nums; }
@@ -53,6 +54,7 @@
   th { color: var(--ink-2); font-weight: 600; font-size: 12px; }
   tr.current td { font-weight: 650; }
   .muted { color: var(--muted); }
+  td .tag { color: var(--muted); font-weight: 400; font-size: 12px; margin-left: 6px; }
   .section { margin-top: 20px; }
   .error { color: var(--critical); font-weight: 600; }
 </style>
@@ -94,7 +96,7 @@
 
   <div class="section card">
     <h2>Results on the full recordings</h2>
-    <p class="sub" style="margin-bottom:10px">From the training run on Kaggle, for the selected alert rule and target rate. The replay above uses 10,000 packets near the attack start. These results use all test packets of each recording.</p>
+    <p class="sub" style="margin-bottom:10px">From the training run on Kaggle, for the selected alert rule and target rate. The replay above uses 10,000 packets near the attack start. These results use all test packets of each recording, so the numbers are different. A delay that is not credible is an alert that false alarms can explain.</p>
     <div class="tablewrap"><table id="results"><thead></thead><tbody></tbody></table></div>
   </div>
 </main>
@@ -162,6 +164,7 @@ async function load() {
     }
     demo.malAt = new Int32Array(demo.values.length); let mal = 0, hit = 0; demo.hitAt = new Int32Array(demo.values.length);
     for (let i = 0; i < demo.values.length; i++) { if (demo.labels[i]) { mal++; if (demo.alerts[i]) hit++; } demo.malAt[i] = mal; demo.hitAt[i] = hit; }
+    demo.full = rows.find((r) => r.attack === demo.model) || null;
     shown = demo.values.length;
     $("chartTitle").textContent = (demo.smooth ? "Mean of the detector score, last 100 packets" : "Detector score for each packet") + " (log scale) – " + demo.title;
     draw(); tiles(); table(rows);
@@ -219,16 +222,34 @@ function tiles() {
   const a = demo.attack_start, i = Math.max(0, shown - 1), full = shown === demo.values.length;
   const detectedAt = demo.firstAlertAfter >= 0 && demo.firstAlertAfter < shown ? demo.firstAlertAfter : -1;
   const status = $("status"), icon = status.querySelector(".icon");
+  // The replay has few packets. The credibility check of the full recording decides the wording.
+  const credible = demo.full ? demo.full.delay_credible === true : null;
   if (detectedAt >= 0) {
-    status.className = "status alert"; icon.textContent = "!";
-    $("statusText").innerHTML = "";
-    $("statusText").append("Attack detected ", Object.assign(document.createElement("small"), { textContent: fmt(detectedAt - a) + " packets after the attack start" }));
-  } else {
+    const after = fmt(detectedAt - a) + " packets after the attack start";
+    $("statusText").replaceChildren();
+    if (credible === false) {
+      status.className = "status unsure"; icon.textContent = "?";
+      $("statusText").append("Alert, but not a credible detection ", Object.assign(document.createElement("small"),
+        { textContent: after + ". In the full recording, false alarms can explain this alert." }));
+    } else {
+      status.className = "status alert"; icon.textContent = "!";
+      $("statusText").append("Attack detected ", Object.assign(document.createElement("small"),
+        { textContent: after + (credible ? ". Credible in the full recording." : "") }));
+    }
+  } else if (shown <= a) {
     status.className = "status"; icon.textContent = "✓";
-    $("statusText").textContent = shown <= a ? "Normal traffic" : (full ? "No alert after the attack start" : "Attack in progress, no alert yet");
+    $("statusText").textContent = "Normal traffic";
+  } else {
+    // The attack is in progress and the detector gives no alert. A green mark would be wrong here.
+    status.className = "status unsure"; icon.textContent = "?";
+    $("statusText").replaceChildren(full ? "Attack not detected " : "Attack in progress, no alert yet ");
+    if (full) $("statusText").append(Object.assign(document.createElement("small"),
+      { textContent: "No alert in " + fmt(shown - a) + " packets after the attack start." }));
   }
   $("tDelay").textContent = detectedAt >= 0 ? fmt(detectedAt - a) : "–";
-  $("tDelayNote").textContent = detectedAt >= 0 ? "packets after the attack start" : (full ? "not detected in this replay" : "");
+  $("tDelayNote").textContent = detectedAt >= 0
+    ? "packets after the attack start" + (credible === false ? " (not credible)" : "")
+    : (full ? "not detected in this replay" : "");
   $("tEvents").textContent = fmt(demo.eventsAt[Math.min(i, a - 1)]);
   $("tEventsNote").textContent = "in " + fmt(Math.min(shown, a)) + " benign packets";
   const mal = demo.malAt[i], hit = demo.hitAt[i];
@@ -250,6 +271,10 @@ function table(rows) {
       const td = document.createElement("td"); const v = r[key];
       if (v === null || v === undefined) { td.textContent = "–"; td.className = "muted"; }
       else if (key === "delay_credible") td.textContent = v ? "Yes" : "No";
+      else if (key === "delay_packets" && r.delay_credible !== true) {
+        td.className = "muted"; td.textContent = fmt(v);
+        td.append(Object.assign(document.createElement("span"), { className: "tag", textContent: "not credible" }));
+      }
       else if (key === "packet_recall") td.textContent = (100 * v).toFixed(1) + "%";
       else if (key === "false_alarm_events_per_100k_upper95") td.textContent = v.toFixed(1);
       else if (key === "placebo_credible") td.textContent = v + " of " + (r.placebo_starts ?? 6);
