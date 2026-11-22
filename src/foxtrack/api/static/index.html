@@ -339,7 +339,7 @@ $("play").addEventListener("click", play);
 (async () => {
   try {
     models = (await getJSON("/api/models")).filter((m) => m.has_demo);
-    if (!models.length) throw new Error("the service has no model with demo packets");
+    if (!models.length) throw new Error("the folder demo_data has no packets. The packets are a part of the Kitsune dataset, so they are not in the repository. The README, section Quick start, tells you how to get them. The API at /docs works with no demo packets.");
     setOptions($("model"), models.map((m) => [m.name, m.title]), models.find((m) => m.name === "mirai_botnet") ? "mirai_botnet" : models[0].name);
     fillSettings();
     await load();

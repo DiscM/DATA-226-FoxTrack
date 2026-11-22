@@ -59,7 +59,7 @@ src/foxtrack/metrics.py   detection delay, alert logic, false alarms
 src/foxtrack/serving/     the trained detector and the online alert rules, in NumPy
 src/foxtrack/api/         FastAPI service and the dashboard page
 models/pca_baseline/      trained models, exported by notebook 02
-demo_data/                packets near each attack start, for the dashboard
+demo_data/                packets near each attack start, for the dashboard (not in git)
 tests/
 ```
 
@@ -105,8 +105,17 @@ uvicorn foxtrack.api.app:app --app-dir src
 
 Then open http://127.0.0.1:8000 for the dashboard, or http://127.0.0.1:8000/docs for the API.
 
-The dashboard replays 10,000 recorded packets near an attack start (`demo_data/`) through the
-detector. It shows the score, the alerts, the detection delay, and the false alarm events.
+The dashboard replays 10,000 recorded packets near an attack start through the detector. It
+shows the score, the alerts, the detection delay, and the false alarm events.
+
+The recorded packets are a part of the Kitsune dataset (GNU AGPL 3.0), so they are not in this
+repository. Put them in the folder `demo_data/` before you start the service:
+
+- **From your Kaggle run:** download the folder `baseline/demo` from the output of notebook 02,
+  and copy its files to `demo_data/`.
+- **From the public dataset:** download the two files of a recording from Kaggle (Mirai is the
+  smallest, 1.4 GB), then run `python scripts/make_demo_data.py <kitsune_dir>`. This needs
+  pandas.
 
 | Endpoint | Purpose |
 |---|---|

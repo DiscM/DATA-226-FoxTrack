@@ -32,7 +32,7 @@ dataset `ymirsky/network-attack-dataset-kitsune` (notebook 01) or the output of 
 | 6 | `foxtrack-04-confound-drop-clock` | 1 | e6f9ea8 | 2026-11-22 01:39 | 41 min 57 s | `04_confound_drop_clock_v1.log` | `supervised_drop_clock.csv` |
 | 7 | `foxtrack-02-baseline-anomaly` | 2 | 27069f9 | 2026-11-22 01:48 | 10 min 39 s | `02_baseline_v2_moving_mean.log` | replaced by run 9 |
 | 8 | `foxtrack-02-baseline-anomaly` | 3 | 6c4ff4c | 2026-11-22 02:12 | 10 min 35 s | `02_baseline_v3_events_placebo.log` | same numbers as run 9 |
-| 9 | `foxtrack-02-baseline-anomaly` | 4 | fb9e2d9 | 2026-11-22 02:42 | 13 min 33 s | `02_baseline_v4_model_export.log` | `baseline_pca.csv`, `models/pca_baseline/`, `demo_data/` |
+| 9 | `foxtrack-02-baseline-anomaly` | 4 | fb9e2d9 | 2026-11-22 02:42 | 13 min 33 s | `02_baseline_v4_model_export.log` | `baseline_pca.csv`, `models/pca_baseline/`; demo packets in the Kaggle output |
 
 Notes:
 
@@ -53,6 +53,11 @@ example Mirai 42 packets and OS Scan 30 packets, rule "mean of 100", target rate
 `reports/figures/dashboard_mirai.png` is a screenshot of the dashboard with these models.
 
 ## Data that is not in this repository
+
+- **Demo packets for the dashboard** (nine files, 27 MB). They are a part of the Kitsune
+  dataset, which has the licence GNU AGPL 3.0 on Kaggle. They were in this repository for a
+  short time and were removed. They are in the output of run 9, folder `baseline/demo`.
+  `scripts/make_demo_data.py` builds them again from downloaded dataset files.
 
 - **Score for each packet** (45 Parquet files, approximately 335 MB). They are in the
   output of the Kaggle notebooks, folders `baseline/scores`, `supervised/scores`, and
