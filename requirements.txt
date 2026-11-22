@@ -4,5 +4,6 @@ numpy
 pyarrow
 mlflow
 scikit-learn
+scipy
 pytest
 matplotlib

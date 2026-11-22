@@ -80,7 +80,7 @@ def test_credibility_real_detection():
     out = credibility(3, 10, 100_000, 0.9)
     assert out["alert_lift"] == pytest.approx(9000)
     assert out["detection_credible"] and out["delay_credible"]
-    assert out["chance_delay_probability"] == pytest.approx(1 - (1 - 1e-4) ** 4)
+    assert out["chance_delay_probability"] == pytest.approx(1 - (1 - 1e-4) ** 4, rel=1e-3)
 
 
 def test_credibility_rejects_alert_at_false_alarm_rate():
@@ -177,3 +177,61 @@ def test_evaluate_grid_window_one_is_the_plain_threshold():
     row = evaluate_grid(calib, test, labels, 500, target_fprs=(1e-2,), alert_rules=((1, 1),), smooth_windows=(1,))[0]
     direct = onset_evaluation(test, labels, 500, float(np.quantile(calib, 0.99)))
     assert {k: row[k] for k in direct} == direct
+
+
+def test_false_alarm_events_count_sequences_not_packets():
+    from foxtrack.metrics import onset_evaluation
+    scores = np.zeros(10_000)
+    scores[1000:1080] = 1.0      # one period of 80 packets
+    scores[5000] = 1.0           # one single packet
+    scores[5050] = 1.0           # 50 packets later: the same event
+    scores[9000:] = 1.0          # the attack
+    labels = (np.arange(10_000) >= 9000).astype(int)
+    out = onset_evaluation(scores, labels, onset=9000, threshold=0.5)
+    assert out["false_alarms_before_attack"] == 82
+    assert out["false_alarm_events"] == 2
+    assert out["false_alarm_events_per_100k"] == pytest.approx(2 / 9000 * 1e5)
+    assert out["false_alarm_events_per_100k_upper95"] > out["false_alarm_events_per_100k"]
+
+
+def test_credibility_with_events_accepts_a_real_detection_with_long_events():
+    from foxtrack.metrics import credibility
+    # Mirai with the moving mean: 4 events (283 packets) in 18,244 benign packets, recall 1.0, delay 42.
+    by_packets = credibility(42, 283, 18_244, 1.0)
+    by_events = credibility(42, 283, 18_244, 1.0, false_alarm_events=4)
+    assert by_packets["chance_delay_probability"] > 0.4 and not by_packets["delay_credible"]
+    assert by_events["chance_delay_probability"] == pytest.approx(0.0245, abs=0.001)
+    assert by_events["delay_credible"]
+    assert by_events["alert_lift"] == by_packets["alert_lift"]
+
+
+def test_rate_upper_limit_rule_of_three():
+    from foxtrack.metrics import rate_upper_limit
+    assert rate_upper_limit(0, 100_000) == pytest.approx(3 / 100_000, rel=0.01)
+    assert rate_upper_limit(10, 100_000) > 10 / 100_000
+    assert np.isnan(rate_upper_limit(0, 0))
+
+
+def test_placebo_finds_no_detection_in_stable_benign_traffic():
+    from foxtrack.metrics import placebo_credible_count
+    rng = np.random.default_rng(0)
+    benign = rng.random(50_000)
+    assert placebo_credible_count(benign, threshold=0.999) == 0
+
+
+def test_placebo_detects_a_change_in_benign_traffic():
+    from foxtrack.metrics import placebo_credible_count
+    rng = np.random.default_rng(0)
+    benign = rng.random(50_000)
+    benign[25_000:] += 1.0       # the benign traffic changes at the placebo start of 0.5
+    assert placebo_credible_count(benign, threshold=0.999) >= 1
+
+
+def test_evaluate_grid_has_event_and_placebo_columns():
+    from foxtrack.metrics import evaluate_grid
+    rng = np.random.default_rng(2)
+    calib, test = rng.random(5000), np.concatenate((rng.random(5000), rng.random(1000) + 2))
+    labels = np.concatenate((np.zeros(5000, int), np.ones(1000, int)))
+    row = evaluate_grid(calib, test, labels, 5000, target_fprs=(1e-3,))[0]
+    assert {"false_alarm_events", "false_alarm_events_per_100k_upper95", "placebo_credible", "placebo_starts"} <= set(row)
+    assert row["placebo_credible"] == 0 and row["placebo_starts"] == 6

@@ -117,35 +117,48 @@ def credibility(
     packet_recall: float,
     min_lift: float = 5.0,
     max_chance: float = 0.05,
+    false_alarm_events: int | None = None,
 ) -> dict:
     """Tell a real detection from an alert that false alarms can explain.
 
-    A detector that gives false alarms at a constant rate also gives an
-    "alert" soon after each attack start. Two checks prevent that error:
+    A detector that gives false alarms also gives an "alert" soon after each
+    attack start. Two checks prevent that error:
 
     alert_lift
-        Alert rate on malicious packets, divided by the alert rate on benign
-        packets before the attack. ``detection_credible`` is true if the lift
-        is at least ``min_lift``: the detector reacts to the attack.
+        Fraction of malicious packets with an alert, divided by the fraction
+        of benign packets with an alert before the attack.
+        ``detection_credible`` is true if the lift is at least ``min_lift``:
+        the detector reacts to the attack.
 
     chance_delay_probability
-        Probability that a detector with no skill, and the same false alarm
-        rate, gives an alert in the same number of packets or fewer.
+        Probability that a detector with no skill, and the same false alarms,
+        gives an alert in the same number of packets or fewer.
         ``delay_credible`` is true if the detection is credible and this
         probability is at most ``max_chance``: the delay shows early detection.
 
-    The benign alert rate has a floor of one alert in the benign period.
-    Zero false alarms in a short period is thus not proof of a zero rate.
+    The chance model. False alarms come as events. An event is a sequence of
+    alerts, and it can continue for many packets (a moving mean stays high
+    for the length of its window). An attack start at a random time gets an
+    alert with no delay if an event is in progress (probability = fraction of
+    benign packets with an alert). If not, the next event starts at the rate
+    of events for each benign packet. If ``false_alarm_events`` is not given,
+    each false alarm packet is one event.
+
+    The two rates have a floor of one in the benign period. Zero false alarms
+    in a short period is thus not proof of a zero rate.
     """
     if not benign_packets_before_attack:
         return {"alert_lift": float("nan"), "detection_credible": False,
                 "chance_delay_probability": float("nan"), "delay_credible": False}
-    benign_rate = max(false_alarms_before_attack, 1) / benign_packets_before_attack
-    lift = packet_recall / benign_rate if packet_recall == packet_recall else float("nan")
+    n = benign_packets_before_attack
+    events = false_alarms_before_attack if false_alarm_events is None else false_alarm_events
+    alert_fraction = min(max(false_alarms_before_attack, 1) / n, 1.0)
+    event_rate = max(events, 1) / n
+    lift = packet_recall / alert_fraction if packet_recall == packet_recall else float("nan")
     detection_ok = bool(lift >= min_lift)
     detected = delay_packets is not None and delay_packets == delay_packets
     if detected:
-        chance = float(-np.expm1((delay_packets + 1) * np.log1p(-min(benign_rate, 1 - 1e-12))))
+        chance = float(1.0 - (1.0 - alert_fraction) * np.exp(-event_rate * delay_packets))
     else:
         chance = float("nan")
     return {
@@ -156,13 +169,30 @@ def credibility(
     }
 
 
+def rate_upper_limit(events: int, packets: int, confidence: float = 0.95) -> float:
+    """Upper confidence limit of an event rate (events for each packet), Poisson model.
+
+    Zero events in N packets does not prove a zero rate. With 95% confidence
+    the rate is less than approximately 3 / N.
+    """
+    from scipy.stats import chi2
+
+    if not packets:
+        return float("nan")
+    return float(chi2.ppf(confidence, 2 * (events + 1)) / 2 / packets)
+
+
 def add_credibility(results, min_lift: float = 5.0, max_chance: float = 0.05):
-    """Add the credibility columns to a results table (pandas DataFrame)."""
+    """Add the credibility columns to a results table (pandas DataFrame).
+
+    Uses the column ``false_alarm_events`` if the table has it.
+    """
     import pandas as pd
 
+    has_events = "false_alarm_events" in results.columns
     rows = [
         credibility(r.delay_packets, r.false_alarms_before_attack, r.benign_packets_before_attack,
-                    r.packet_recall, min_lift, max_chance)
+                    r.packet_recall, min_lift, max_chance, r.false_alarm_events if has_events else None)
         for r in results.itertuples()
     ]
     extra = pd.DataFrame(rows, index=results.index)
@@ -178,8 +208,15 @@ def onset_evaluation(
     n: int = 1,
     min_lift: float = 5.0,
     max_chance: float = 0.05,
+    event_gap: int = 100,
 ) -> dict:
     """Evaluate one capture that has one attack start at position ``onset``.
+
+    A false alarm event is a sequence of alerts before the attack. Alerts
+    with fewer than ``event_gap`` packets between them are one event. An
+    operator gets one alarm for one event, so the event count is the
+    operational measure. The packet count is much larger for a rule that
+    stays in alert for many packets, such as a moving mean.
 
     False alarms are counted only before the attack start. An alert on a
     benign packet during the attack is not a false alarm for the operator.
@@ -189,6 +226,7 @@ def onset_evaluation(
     after = np.flatnonzero(alerts[onset:])
     detected = after.size > 0
     false_alarms = int(alerts[:onset].sum())
+    events = int(len(find_episodes(alerts[:onset], merge_gap=event_gap)))
     malicious = labels == 1
     n_malicious = int(malicious.sum())
     delay = int(after[0]) if detected else None
@@ -202,8 +240,11 @@ def onset_evaluation(
         "benign_packets_before_attack": int(onset),
         "false_alarms_before_attack": false_alarms,
         "false_alarms_per_100k": false_alarms / onset * 100_000 if onset else float("nan"),
+        "false_alarm_events": events,
+        "false_alarm_events_per_100k": events / onset * 100_000 if onset else float("nan"),
+        "false_alarm_events_per_100k_upper95": rate_upper_limit(events, onset) * 100_000,
         "packet_recall": recall,
-        **credibility(delay, false_alarms, onset, recall, min_lift, max_chance),
+        **credibility(delay, false_alarms, onset, recall, min_lift, max_chance, events),
     }
 
 
@@ -245,6 +286,30 @@ def alert_rule_name(k: int, n: int, smooth_window: int) -> str:
     return "threshold" if (k, n) == (1, 1) else f"{k} of {n}"
 
 
+PLACEBO_FRACTIONS = (0.3, 0.4, 0.5, 0.6, 0.7, 0.8)
+
+
+def placebo_credible_count(benign_scores: np.ndarray, threshold: float, k: int = 1, n: int = 1,
+                           fractions=PLACEBO_FRACTIONS) -> int:
+    """Number of false "attack starts" in benign traffic that the check accepts as credible.
+
+    Each placebo start is a position in the benign test packets. The packets
+    after it get the label malicious, although no attack is there. A correct
+    procedure must find no credible early detection. A count of more than
+    zero shows that the result for this setting is not reliable.
+    """
+    benign_scores = np.asarray(benign_scores)
+    count = 0
+    for fraction in fractions:
+        start = int(benign_scores.size * fraction)
+        if start == 0 or start >= benign_scores.size:
+            continue
+        labels = np.zeros(benign_scores.size, dtype=np.int8)
+        labels[start:] = 1
+        count += onset_evaluation(benign_scores, labels, start, threshold, k, n)["delay_credible"]
+    return int(count)
+
+
 def evaluate_grid(
     calib_scores: np.ndarray,
     test_scores: np.ndarray,
@@ -276,6 +341,8 @@ def evaluate_grid(
             threshold = float(np.quantile(calib, 1 - fpr))
             for k, n in rules:
                 result = onset_evaluation(test, labels, onset, threshold, k, n)
+                placebo = placebo_credible_count(test[:onset], threshold, k, n)
                 rows.append({"target_fpr": fpr, "alert_rule": alert_rule_name(k, n, window),
-                             "smooth_window": window, **result})
+                             "smooth_window": window, **result,
+                             "placebo_credible": placebo, "placebo_starts": len(PLACEBO_FRACTIONS)})
     return rows
