@@ -35,8 +35,9 @@ summary.json                       row counts and attack episodes
 6. Import `notebooks/03_supervised_leave_one_out.ipynb` with the same input. It trains the
    supervised models on eight captures and tests each model on the ninth.
 
-7. `notebooks/04_time_confound_test.ipynb` tests if the supervised models learn the time in the
-   capture and not the attack. Set `VARIANT` in its first code cell.
+7. `notebooks/04_time_confound_test.ipynb` answers this question for the supervised models:
+   *Did the model learn what an attack looks like, or did it only learn that attacks come near the end of each recording?*
+   Set `VARIANT` in its first code cell.
 
 ## Dataset facts (from the ETL summary)
 
