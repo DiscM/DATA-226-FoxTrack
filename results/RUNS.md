@@ -45,7 +45,7 @@ Notes:
 
 ## Data that is not in this repository
 
-- **Score for each packet** (27 + 18 Parquet files, approximately 400 MB). They are in the
+- **Score for each packet** (45 Parquet files, approximately 335 MB). They are in the
   output of the Kaggle notebooks, folders `baseline/scores`, `supervised/scores`, and
   `confound/scores`. The figure and `auc_by_attack.csv` come from these files.
 - **MLflow records.** Each Kaggle run has a file `mlflow.db` in its output.
