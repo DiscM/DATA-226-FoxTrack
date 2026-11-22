@@ -88,7 +88,9 @@ The ETL tests need Java (17 or later).
 
 ## Results and figures
 
-- `results/` has the result tables of the Kaggle runs (baseline and supervised).
+- `results/` has the result tables of the Kaggle runs.
+- `results/RUNS.md` is the record of each run: code version, time, log, and corrections.
+- `results/logs/` has a copy of the Kaggle log of each run.
 - `reports/figures/alert_rate_near_attack_start.png` shows the alert rate before and after
   the labelled attack start for each capture. To make it again, download the score files
   of notebooks 02 and 03, then run:
