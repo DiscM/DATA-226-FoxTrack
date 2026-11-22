@@ -5,3 +5,4 @@ pyarrow
 mlflow
 scikit-learn
 pytest
+matplotlib
