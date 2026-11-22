@@ -1,0 +1,323 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FoxTrack</title>
+<style>
+  :root {
+    --page: #f9f9f7; --surface: #fcfcfb; --ink: #0b0b0b; --ink-2: #52514e; --muted: #898781;
+    --grid: #e1e0d9; --axis: #c3c2b7; --border: rgba(11,11,11,0.10);
+    --series: #2a78d6; --critical: #d03b3b; --good: #0ca30c; --good-text: #006300; --attack-band: rgba(208,59,59,0.07);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --page: #0d0d0d; --surface: #1a1a19; --ink: #f0efec; --ink-2: #c3c2b7; --muted: #898781;
+      --grid: #2c2c2a; --axis: #383835; --border: rgba(255,255,255,0.10);
+      --series: #3987e5; --critical: #d03b3b; --good: #0ca30c; --good-text: #0ca30c; --attack-band: rgba(208,59,59,0.13);
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--page); color: var(--ink); font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  main { max-width: 1120px; margin: 0 auto; padding: 24px 16px 48px; }
+  h1 { font-size: 22px; margin: 0; }
+  h2 { font-size: 15px; margin: 0 0 4px; }
+  .sub { color: var(--ink-2); margin: 2px 0 20px; }
+  .controls { display: flex; flex-wrap: wrap; gap: 12px; align-items: end; margin-bottom: 16px; }
+  label { display: grid; gap: 4px; font-size: 12px; color: var(--ink-2); }
+  select, button { font: inherit; color: var(--ink); background: var(--surface); border: 1px solid var(--axis); border-radius: 6px; padding: 7px 10px; }
+  button { cursor: pointer; font-weight: 600; }
+  button:hover { border-color: var(--ink-2); }
+  select:focus-visible, button:focus-visible, .plot:focus-visible { outline: 2px solid var(--series); outline-offset: 2px; }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 16px; }
+  .status { display: flex; align-items: center; gap: 10px; font-weight: 600; font-size: 16px; margin-bottom: 12px; }
+  .status .icon { width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; color: #fff; font-size: 13px; background: var(--good); flex: none; }
+  .status.alert .icon { background: var(--critical); }
+  .status small { font-weight: 400; color: var(--ink-2); font-size: 13px; }
+  .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin-bottom: 12px; }
+  .tile .value { font-size: 26px; font-weight: 650; font-variant-numeric: tabular-nums; }
+  .tile .name { color: var(--ink-2); font-size: 12px; }
+  .tile .note { color: var(--muted); font-size: 12px; min-height: 1.4em; }
+  .plot { position: relative; }
+  svg { display: block; width: 100%; height: auto; }
+  svg text { fill: var(--muted); font-size: 11px; }
+  svg .lbl { fill: var(--ink-2); }
+  .tip { position: absolute; pointer-events: none; background: var(--surface); border: 1px solid var(--axis); border-radius: 6px; padding: 6px 9px; font-size: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.12); white-space: nowrap; display: none; }
+  .tip b { font-variant-numeric: tabular-nums; }
+  .key { display: flex; flex-wrap: wrap; gap: 16px; color: var(--ink-2); font-size: 12px; margin-top: 6px; }
+  .key i { display: inline-block; vertical-align: middle; margin-right: 6px; }
+  .tablewrap { overflow-x: auto; }
+  table { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; }
+  th, td { text-align: right; padding: 7px 10px; border-bottom: 1px solid var(--grid); white-space: nowrap; }
+  th:first-child, td:first-child { text-align: left; }
+  th { color: var(--ink-2); font-weight: 600; font-size: 12px; }
+  tr.current td { font-weight: 650; }
+  .muted { color: var(--muted); }
+  .section { margin-top: 20px; }
+  .error { color: var(--critical); font-weight: 600; }
+</style>
+</head>
+<body>
+<main>
+  <h1>FoxTrack</h1>
+  <p class="sub">Early attack detection on network traffic. The detector learns the normal traffic of a network and gives an alert when the traffic changes.</p>
+
+  <div class="controls">
+    <label>Recording <select id="model"></select></label>
+    <label>Alert rule <select id="rule"></select></label>
+    <label>Target false positive rate <select id="fpr"></select></label>
+    <button id="play" type="button">Replay</button>
+  </div>
+  <p id="error" class="error" role="alert"></p>
+
+  <div class="card">
+    <div id="status" class="status" role="status"><span class="icon" aria-hidden="true">✓</span><span id="statusText">Loading</span></div>
+    <div class="tiles">
+      <div class="tile"><div class="name">Detection delay</div><div class="value" id="tDelay">–</div><div class="note" id="tDelayNote"></div></div>
+      <div class="tile"><div class="name">False alarm events before the attack</div><div class="value" id="tEvents">–</div><div class="note" id="tEventsNote"></div></div>
+      <div class="tile"><div class="name">Malicious packets with an alert</div><div class="value" id="tRecall">–</div><div class="note" id="tRecallNote"></div></div>
+      <div class="tile"><div class="name">Packets replayed</div><div class="value" id="tSeen">–</div><div class="note" id="tSeenNote"></div></div>
+    </div>
+
+    <h2 id="chartTitle">Detector score</h2>
+    <div class="plot" id="plot" tabindex="0" aria-label="Detector score for each packet near the attack start. Use the left and right arrow keys to read values.">
+      <svg id="chart" viewBox="0 0 1080 360" role="img" aria-labelledby="chartTitle"></svg>
+      <div class="tip" id="tip"></div>
+    </div>
+    <div class="key">
+      <span><i style="width:18px;border-top:2px solid var(--series)"></i>Detector score</span>
+      <span><i style="width:18px;border-top:1.5px dashed var(--ink-2)"></i>Alert threshold</span>
+      <span><i style="width:3px;height:12px;background:var(--critical)"></i>Packet with an alert</span>
+      <span><i style="width:14px;height:12px;background:var(--attack-band);border:1px solid var(--border)"></i>Attack period (label of the dataset)</span>
+    </div>
+  </div>
+
+  <div class="section card">
+    <h2>Results on the full recordings</h2>
+    <p class="sub" style="margin-bottom:10px">From the training run on Kaggle, for the selected alert rule and target rate. The replay above uses 10,000 packets near the attack start. These results use all test packets of each recording.</p>
+    <div class="tablewrap"><table id="results"><thead></thead><tbody></tbody></table></div>
+  </div>
+</main>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const fmt = (n) => Number(n).toLocaleString("en-US");
+const W = 1080, H = 360, M = { l: 56, r: 16, t: 14, b: 62 };
+const PW = W - M.l - M.r, PH = H - M.t - M.b, RUG_Y = H - M.b + 26;
+let models = [], demo = null, shown = 0, timer = null, hoverIdx = null;
+
+async function getJSON(url) {
+  const res = await fetch(url);
+  if (!res.ok) throw new Error((await res.json().catch(() => ({}))).detail || res.statusText);
+  return res.json();
+}
+function el(name, attrs, text) {
+  const node = document.createElementNS("http://www.w3.org/2000/svg", name);
+  for (const k in attrs) node.setAttribute(k, attrs[k]);
+  if (text !== undefined) node.textContent = text;
+  return node;
+}
+// The plain threshold and the k-of-n rules use the raw score, which has a very large range.
+const display = (v) => demo.smooth ? v : Math.log1p(v);
+const xOf = (i) => M.l + (i / (demo.values.length - 1)) * PW;
+const yOf = (v) => M.t + PH - ((display(v) - demo.y0) / (demo.y1 - demo.y0)) * PH;
+
+function setOptions(select, items, current) {
+  select.replaceChildren(...items.map(([value, text]) => {
+    const o = document.createElement("option"); o.value = value; o.textContent = text; o.selected = value === current; return o;
+  }));
+}
+function fillSettings() {
+  const m = models.find((x) => x.name === $("model").value);
+  const rules = [...new Set(m.settings.map((s) => s.alert_rule))];
+  const fprs = [...new Set(m.settings.map((s) => s.target_fpr))].sort((a, b) => a - b);
+  const names = { "threshold": "Threshold (one packet)", "mean of 100": "Mean of the last 100 packets" };
+  setOptions($("rule"), rules.map((r) => [r, names[r] || r + " packets"]), rules.includes($("rule").value) ? $("rule").value : (rules.includes("mean of 100") ? "mean of 100" : rules[0]));
+  const cur = fprs.map(String).includes($("fpr").value) ? $("fpr").value : String(fprs[0]);
+  setOptions($("fpr"), fprs.map((f) => [String(f), f + "  (" + fmt(f * 1e5) + " for each 100,000 packets)"]), cur);
+}
+
+async function load() {
+  stop();
+  $("error").textContent = "";
+  const q = "alert_rule=" + encodeURIComponent($("rule").value) + "&target_fpr=" + $("fpr").value;
+  try {
+    const [d, rows] = await Promise.all([getJSON("/api/demo/" + $("model").value + "?" + q), getJSON("/api/results?" + q)]);
+    demo = d;
+    demo.smooth = demo.alert_rule.startsWith("mean");
+    const shownValues = demo.values.map(display), thr = display(demo.threshold);
+    demo.y0 = 0;
+    demo.y1 = Math.max(...shownValues, thr) * 1.06 || 1;
+    // False alarm events before the attack, at each position (alerts less than 100 packets apart are one event).
+    demo.eventsAt = new Int32Array(demo.values.length); demo.alertsAt = new Int32Array(demo.values.length);
+    let events = 0, last = -1e9, count = 0;
+    demo.firstAlertAfter = -1;
+    for (let i = 0; i < demo.values.length; i++) {
+      if (demo.alerts[i]) {
+        if (i < demo.attack_start) { if (i - last > 100) events++; last = i; }
+        else { count++; if (demo.firstAlertAfter < 0) demo.firstAlertAfter = i; }
+      }
+      demo.eventsAt[i] = events; demo.alertsAt[i] = count;
+    }
+    demo.malAt = new Int32Array(demo.values.length); let mal = 0, hit = 0; demo.hitAt = new Int32Array(demo.values.length);
+    for (let i = 0; i < demo.values.length; i++) { if (demo.labels[i]) { mal++; if (demo.alerts[i]) hit++; } demo.malAt[i] = mal; demo.hitAt[i] = hit; }
+    shown = demo.values.length;
+    $("chartTitle").textContent = (demo.smooth ? "Mean of the detector score, last 100 packets" : "Detector score for each packet (log scale)") + " – " + demo.title;
+    draw(); tiles(); table(rows);
+  } catch (e) { $("error").textContent = "Cannot load the data: " + e.message; }
+}
+
+function draw() {
+  const svg = $("chart"); svg.replaceChildren();
+  const n = demo.values.length, a = demo.attack_start;
+  // Attack period and gridlines
+  svg.append(el("rect", { x: xOf(a), y: M.t, width: M.l + PW - xOf(a), height: PH, fill: "var(--attack-band)" }));
+  for (let g = 0; g <= 4; g++) {
+    const v = demo.y0 + (demo.y1 - demo.y0) * g / 4, y = M.t + PH - PH * g / 4;
+    svg.append(el("line", { x1: M.l, x2: M.l + PW, y1: y, y2: y, stroke: "var(--grid)", "stroke-width": 1 }));
+    svg.append(el("text", { x: M.l - 8, y: y + 4, "text-anchor": "end" }, v.toFixed(v < 10 ? 2 : 0)));
+  }
+  svg.append(el("line", { x1: M.l, x2: M.l + PW, y1: M.t + PH, y2: M.t + PH, stroke: "var(--axis)", "stroke-width": 1 }));
+  // X ticks: packets from the attack start
+  const step = 1000;
+  for (let rel = Math.ceil(-a / step) * step; rel <= n - 1 - a; rel += step) {
+    const x = xOf(rel + a);
+    svg.append(el("text", { x, y: M.t + PH + 16, "text-anchor": "middle" }, rel === 0 ? "0" : (rel > 0 ? "+" : "−") + fmt(Math.abs(rel))));
+  }
+  svg.append(el("text", { x: M.l + PW / 2, y: H - 4, "text-anchor": "middle", class: "lbl" }, "Packets from the attack start"));
+  svg.append(el("text", { x: M.l - 8, y: RUG_Y + 10, "text-anchor": "end", class: "lbl" }, "Alerts"));
+  // Attack start
+  svg.append(el("line", { x1: xOf(a), x2: xOf(a), y1: M.t, y2: M.t + PH, stroke: "var(--ink-2)", "stroke-width": 1 }));
+  svg.append(el("text", { x: xOf(a) + 6, y: M.t + 12, class: "lbl" }, "attack start"));
+  // Threshold
+  const ty = yOf(demo.threshold);
+  svg.append(el("line", { x1: M.l, x2: M.l + PW, y1: ty, y2: ty, stroke: "var(--ink-2)", "stroke-width": 1.5, "stroke-dasharray": "5 4" }));
+  svg.append(el("text", { x: M.l + 6, y: ty - 6, class: "lbl" }, "alert threshold"));
+  // Score line: the maximum of each pixel column, so that single peaks stay visible.
+  const cols = Math.min(PW, shown), pts = [];
+  for (let c = 0; c < cols; c++) {
+    const from = Math.floor(c * shown / cols), to = Math.max(from + 1, Math.floor((c + 1) * shown / cols));
+    let best = from; for (let i = from; i < to; i++) if (demo.values[i] > demo.values[best]) best = i;
+    pts.push(xOf(best).toFixed(1) + "," + yOf(demo.values[best]).toFixed(1));
+  }
+  svg.append(el("polyline", { points: pts.join(" "), fill: "none", stroke: "var(--series)", "stroke-width": 2, "stroke-linejoin": "round", "stroke-linecap": "round" }));
+  // Alert marks
+  let d = "";
+  for (let c = 0; c < PW; c++) {
+    const from = Math.floor(c * n / PW), to = Math.min(shown, Math.floor((c + 1) * n / PW));
+    for (let i = from; i < to; i++) if (demo.alerts[i]) { d += "M" + (M.l + c + 0.5) + " " + RUG_Y + "v12"; break; }
+  }
+  svg.append(el("path", { d, stroke: "var(--critical)", "stroke-width": 1.2 }));
+  if (hoverIdx !== null && hoverIdx < shown) {
+    svg.append(el("line", { x1: xOf(hoverIdx), x2: xOf(hoverIdx), y1: M.t, y2: RUG_Y + 12, stroke: "var(--muted)", "stroke-width": 1 }));
+    svg.append(el("circle", { cx: xOf(hoverIdx), cy: yOf(demo.values[hoverIdx]), r: 4.5, fill: "var(--series)", stroke: "var(--surface)", "stroke-width": 2 }));
+  }
+}
+
+function tiles() {
+  const a = demo.attack_start, i = Math.max(0, shown - 1), full = shown === demo.values.length;
+  const detectedAt = demo.firstAlertAfter >= 0 && demo.firstAlertAfter < shown ? demo.firstAlertAfter : -1;
+  const status = $("status"), icon = status.querySelector(".icon");
+  if (detectedAt >= 0) {
+    status.className = "status alert"; icon.textContent = "!";
+    $("statusText").innerHTML = "";
+    $("statusText").append("Attack detected ", Object.assign(document.createElement("small"), { textContent: fmt(detectedAt - a) + " packets after the attack start" }));
+  } else {
+    status.className = "status"; icon.textContent = "✓";
+    $("statusText").textContent = shown <= a ? "Normal traffic" : (full ? "No alert after the attack start" : "Attack in progress, no alert yet");
+  }
+  $("tDelay").textContent = detectedAt >= 0 ? fmt(detectedAt - a) : "–";
+  $("tDelayNote").textContent = detectedAt >= 0 ? "packets after the attack start" : (full ? "not detected in this replay" : "");
+  $("tEvents").textContent = fmt(demo.eventsAt[Math.min(i, a - 1)]);
+  $("tEventsNote").textContent = "in " + fmt(Math.min(shown, a)) + " benign packets";
+  const mal = demo.malAt[i], hit = demo.hitAt[i];
+  $("tRecall").textContent = mal ? (100 * hit / mal).toFixed(1) + "%" : "–";
+  $("tRecallNote").textContent = mal ? fmt(hit) + " of " + fmt(mal) + " malicious packets" : "";
+  $("tSeen").textContent = fmt(shown);
+  $("tSeenNote").textContent = "of " + fmt(demo.values.length);
+}
+
+function table(rows) {
+  const cols = [["title", "Attack"], ["delay_packets", "Delay (packets)"], ["delay_credible", "Credible"], ["false_alarm_events", "False alarm events"],
+    ["false_alarm_events_per_100k_upper95", "Upper limit, events per 100,000"], ["packet_recall", "Recall"], ["placebo_credible", "Placebo accepted"]];
+  const head = document.createElement("tr");
+  cols.forEach(([, text]) => { const th = document.createElement("th"); th.textContent = text; head.append(th); });
+  $("results").tHead.replaceChildren(head);
+  const body = rows.map((r) => {
+    const tr = document.createElement("tr"); if (r.attack === demo.model) tr.className = "current";
+    cols.forEach(([key]) => {
+      const td = document.createElement("td"); const v = r[key];
+      if (v === null || v === undefined) { td.textContent = "–"; td.className = "muted"; }
+      else if (key === "delay_credible") td.textContent = v ? "Yes" : "No";
+      else if (key === "packet_recall") td.textContent = (100 * v).toFixed(1) + "%";
+      else if (key === "false_alarm_events_per_100k_upper95") td.textContent = v.toFixed(1);
+      else if (key === "placebo_credible") td.textContent = v + " of " + (r.placebo_starts ?? 6);
+      else td.textContent = typeof v === "number" ? fmt(v) : v;
+      tr.append(td);
+    });
+    return tr;
+  });
+  $("results").tBodies[0].replaceChildren(...body);
+}
+
+function stop() { if (timer) { cancelAnimationFrame(timer); timer = null; $("play").textContent = "Replay"; } }
+function play() {
+  if (timer) { stop(); shown = demo.values.length; draw(); tiles(); return; }
+  if (!demo) return;
+  const n = demo.values.length, t0 = performance.now(), duration = 9000;
+  $("play").textContent = "Stop";
+  const frame = (now) => {
+    shown = Math.max(2, Math.min(n, Math.round(n * (now - t0) / duration)));
+    draw(); tiles();
+    if (shown < n) timer = requestAnimationFrame(frame); else stop();
+  };
+  timer = requestAnimationFrame(frame);
+}
+
+function showTip(i) {
+  if (!demo) return;
+  hoverIdx = Math.max(0, Math.min(shown - 1, i));
+  draw();
+  const tip = $("tip"), rel = hoverIdx - demo.attack_start;
+  tip.replaceChildren();
+  const line = (strong, rest) => { const div = document.createElement("div"); const b = document.createElement("b"); b.textContent = strong; div.append(b, " " + rest); tip.append(div); };
+  line(display(demo.values[hoverIdx]).toFixed(3), "score (threshold " + display(demo.threshold).toFixed(3) + ")");
+  line((rel >= 0 ? "+" : "−") + fmt(Math.abs(rel)), "packets from the attack start");
+  line(demo.alerts[hoverIdx] ? "Alert" : "No alert", demo.labels[hoverIdx] ? "· malicious packet" : "· benign packet");
+  tip.style.display = "block";
+  const box = $("plot").getBoundingClientRect(), px = xOf(hoverIdx) / W * box.width;
+  tip.style.left = Math.min(box.width - tip.offsetWidth - 4, Math.max(4, px + 12)) + "px";
+  tip.style.top = "8px";
+}
+function hideTip() { hoverIdx = null; $("tip").style.display = "none"; if (demo) draw(); }
+$("plot").addEventListener("pointermove", (e) => {
+  const box = $("chart").getBoundingClientRect(), x = (e.clientX - box.left) / box.width * W;
+  if (x < M.l || x > M.l + PW) return hideTip();
+  showTip(Math.round((x - M.l) / PW * (demo.values.length - 1)));
+});
+$("plot").addEventListener("pointerleave", hideTip);
+$("plot").addEventListener("blur", hideTip);
+$("plot").addEventListener("keydown", (e) => {
+  if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
+  e.preventDefault();
+  const stepSize = e.shiftKey ? 500 : 50, base = hoverIdx === null ? demo.attack_start : hoverIdx;
+  showTip(base + (e.key === "ArrowRight" ? stepSize : -stepSize));
+});
+
+$("model").addEventListener("change", () => { fillSettings(); load(); });
+$("rule").addEventListener("change", load);
+$("fpr").addEventListener("change", load);
+$("play").addEventListener("click", play);
+
+(async () => {
+  try {
+    models = (await getJSON("/api/models")).filter((m) => m.has_demo);
+    if (!models.length) throw new Error("the service has no model with demo packets");
+    setOptions($("model"), models.map((m) => [m.name, m.title]), models.find((m) => m.name === "mirai_botnet") ? "mirai_botnet" : models[0].name);
+    fillSettings();
+    await load();
+  } catch (e) { $("error").textContent = "Cannot start the dashboard: " + e.message; $("statusText").textContent = "No data"; }
+})();
+</script>
+</body>
+</html>

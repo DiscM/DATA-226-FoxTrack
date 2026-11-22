@@ -56,6 +56,10 @@ src/foxtrack/split.py     train / calibration / test ranges for each capture
 src/foxtrack/anomaly.py   baseline: scaler + PCA reconstruction error (Spark MLlib)
 src/foxtrack/supervised.py  logistic regression and gradient-boosted trees, leave one capture out
 src/foxtrack/metrics.py   detection delay, alert logic, false alarms
+src/foxtrack/serving/     the trained detector and the online alert rules, in NumPy
+src/foxtrack/api/         FastAPI service and the dashboard page
+models/pca_baseline/      trained models, exported by notebook 02
+demo_data/                packets near each attack start, for the dashboard
 tests/
 ```
 
@@ -85,6 +89,41 @@ pytest
 ```
 
 The ETL tests need Java (17 or later).
+
+## Service and dashboard
+
+The service gives scores and alerts for packets, and it shows a dashboard. It uses the trained
+models in `models/pca_baseline/` (one for each recording). It needs NumPy only, not Spark.
+
+```bash
+pip install -r requirements-serve.txt
+```
+
+```bash
+uvicorn foxtrack.api.app:app --app-dir src
+```
+
+Then open http://127.0.0.1:8000 for the dashboard, or http://127.0.0.1:8000/docs for the API.
+
+The dashboard replays 10,000 recorded packets near an attack start (`demo_data/`) through the
+detector. It shows the score, the alerts, the detection delay, and the false alarm events.
+
+| Endpoint | Purpose |
+|---|---|
+| `GET /api/models` | The trained models and their settings |
+| `POST /api/predict` | Scores and alerts for a sequence of packets (115 features each) |
+| `POST /api/sessions`, `POST /api/sessions/{id}/packets` | A detector that keeps its history, for a stream of packets |
+| `GET /api/demo/{model}` | Replay of the recorded packets near the attack start |
+| `GET /api/results` | Results of the full recordings for one setting |
+
+Example:
+
+```bash
+curl -s http://127.0.0.1:8000/api/demo/mirai_botnet | python -c "import sys, json; print(json.load(sys.stdin)['summary'])"
+```
+
+The service is a demonstration. It is not ready for a production network (see `results/RUNS.md`
+and the limits in the project report).
 
 ## Results and figures
 

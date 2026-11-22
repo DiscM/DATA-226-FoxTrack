@@ -1,0 +1,5 @@
+# The service and the dashboard. Spark is not necessary.
+fastapi
+uvicorn
+numpy
+scipy
