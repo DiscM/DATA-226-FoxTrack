@@ -4,8 +4,9 @@ Usage:
     python scripts/plot_alert_rate_near_onset.py <scores_dir> [output.png]
 
 <scores_dir> has the score files of the Kaggle runs:
-    baseline/<attack>.parquet        from notebook 02
-    supervised/gbt_<attack>.parquet  from notebook 03
+    baseline/<attack>.parquet                      from notebook 02
+    supervised/gbt_<attack>.parquet                from notebook 03
+    confound/gbt_time_matched_<attack>.parquet     from notebook 04, VARIANT = "time_matched"
 """
 
 import sys
@@ -23,8 +24,9 @@ BEFORE, AFTER = 200_000, 100_000
 TARGET_FPR = 1e-3
 
 SERIES = {  # model -> (label, colour, file pattern)
-    "pca_baseline": ("PCA baseline (trained on benign traffic)", "#2a78d6", "baseline/{a}.parquet"),
-    "gbt": ("Gradient-boosted trees (trained on the other eight captures)", "#eb6834", "supervised/gbt_{a}.parquet"),
+    "pca_baseline": ("PCA baseline (benign traffic only)", "#2a78d6", "baseline/{a}.parquet"),
+    "gbt": ("Trees, standard training (other eight captures)", "#eb6834", "supervised/gbt_{a}.parquet"),
+    "gbt_time_matched": ("Trees, time-matched training", "#1baf7a", "confound/gbt_time_matched_{a}.parquet"),
 }
 TITLES = {
     "arp_mitm": "ARP MitM", "active_wiretap": "Active Wiretap", "fuzzing": "Fuzzing",
@@ -50,6 +52,7 @@ def main(scores_dir: Path, out: Path):
     results = pd.concat([
         pd.read_csv(REPO / "results" / "baseline_pca.csv"),
         pd.read_csv(REPO / "results" / "supervised_leave_one_out.csv"),
+        pd.read_csv(REPO / "results" / "supervised_time_matched.csv"),
     ])
     results = results[(results.target_fpr == TARGET_FPR) & (results.k == 1) & (results.n == 1)]
     results = results.set_index(["attack", "model"])
@@ -83,7 +86,7 @@ def main(scores_dir: Path, out: Path):
              f"Each point is the mean of {BIN:,} packets. Threshold: set on benign packets of the capture for a target "
              f"false positive rate of {TARGET_FPR:g}.", ha="left", fontsize=9, color=INK2)
     handles, labels = axes[0, 0].get_legend_handles_labels()
-    fig.legend(handles, labels, loc="upper left", bbox_to_anchor=(0.04, 0.945), ncol=2, frameon=False,
+    fig.legend(handles, labels, loc="upper left", bbox_to_anchor=(0.04, 0.945), ncol=3, frameon=False,
                fontsize=9, labelcolor=INK2, handlelength=1.6, columnspacing=2.5)
     fig.tight_layout(rect=(0.03, 0.02, 0.99, 0.925))
     out.parent.mkdir(parents=True, exist_ok=True)

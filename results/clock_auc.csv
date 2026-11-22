@@ -1,0 +1,10 @@
+attack,clock_roc_auc
+arp_mitm,0.996
+active_wiretap,0.982
+fuzzing,0.906
+mirai_botnet,0.599
+os_scan,0.902
+ssdp_flood,0.857
+ssl_renegotiation,0.123
+syn_dos,0.991
+video_injection,0.783
