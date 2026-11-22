@@ -110,6 +110,65 @@ def evaluate(
     return out
 
 
+def credibility(
+    delay_packets,
+    false_alarms_before_attack: int,
+    benign_packets_before_attack: int,
+    packet_recall: float,
+    min_lift: float = 5.0,
+    max_chance: float = 0.05,
+) -> dict:
+    """Tell a real detection from an alert that false alarms can explain.
+
+    A detector that gives false alarms at a constant rate also gives an
+    "alert" soon after each attack start. Two checks prevent that error:
+
+    alert_lift
+        Alert rate on malicious packets, divided by the alert rate on benign
+        packets before the attack. ``detection_credible`` is true if the lift
+        is at least ``min_lift``: the detector reacts to the attack.
+
+    chance_delay_probability
+        Probability that a detector with no skill, and the same false alarm
+        rate, gives an alert in the same number of packets or fewer.
+        ``delay_credible`` is true if the detection is credible and this
+        probability is at most ``max_chance``: the delay shows early detection.
+
+    The benign alert rate has a floor of one alert in the benign period.
+    Zero false alarms in a short period is thus not proof of a zero rate.
+    """
+    if not benign_packets_before_attack:
+        return {"alert_lift": float("nan"), "detection_credible": False,
+                "chance_delay_probability": float("nan"), "delay_credible": False}
+    benign_rate = max(false_alarms_before_attack, 1) / benign_packets_before_attack
+    lift = packet_recall / benign_rate if packet_recall == packet_recall else float("nan")
+    detection_ok = bool(lift >= min_lift)
+    detected = delay_packets is not None and delay_packets == delay_packets
+    if detected:
+        chance = float(-np.expm1((delay_packets + 1) * np.log1p(-min(benign_rate, 1 - 1e-12))))
+    else:
+        chance = float("nan")
+    return {
+        "alert_lift": float(lift),
+        "detection_credible": detection_ok,
+        "chance_delay_probability": chance,
+        "delay_credible": bool(detected and detection_ok and chance <= max_chance),
+    }
+
+
+def add_credibility(results, min_lift: float = 5.0, max_chance: float = 0.05):
+    """Add the credibility columns to a results table (pandas DataFrame)."""
+    import pandas as pd
+
+    rows = [
+        credibility(r.delay_packets, r.false_alarms_before_attack, r.benign_packets_before_attack,
+                    r.packet_recall, min_lift, max_chance)
+        for r in results.itertuples()
+    ]
+    extra = pd.DataFrame(rows, index=results.index)
+    return pd.concat([results.drop(columns=[c for c in extra.columns if c in results.columns]), extra], axis=1)
+
+
 def onset_evaluation(
     scores: np.ndarray,
     labels: np.ndarray,
@@ -117,6 +176,8 @@ def onset_evaluation(
     threshold: float,
     k: int = 1,
     n: int = 1,
+    min_lift: float = 5.0,
+    max_chance: float = 0.05,
 ) -> dict:
     """Evaluate one capture that has one attack start at position ``onset``.
 
@@ -130,16 +191,19 @@ def onset_evaluation(
     false_alarms = int(alerts[:onset].sum())
     malicious = labels == 1
     n_malicious = int(malicious.sum())
+    delay = int(after[0]) if detected else None
+    recall = float((alerts & malicious).sum() / n_malicious) if n_malicious else float("nan")
     return {
         "threshold": threshold,
         "k": k,
         "n": n,
         "detected": bool(detected),
-        "delay_packets": int(after[0]) if detected else None,
+        "delay_packets": delay,
         "benign_packets_before_attack": int(onset),
         "false_alarms_before_attack": false_alarms,
         "false_alarms_per_100k": false_alarms / onset * 100_000 if onset else float("nan"),
-        "packet_recall": float((alerts & malicious).sum() / n_malicious) if n_malicious else float("nan"),
+        "packet_recall": recall,
+        **credibility(delay, false_alarms, onset, recall, min_lift, max_chance),
     }
 
 

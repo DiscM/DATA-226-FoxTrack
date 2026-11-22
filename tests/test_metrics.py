@@ -72,3 +72,64 @@ def test_evaluate_summary():
     assert out["mean_delay_packets"] == 3
     assert out["false_alarms"] == 0
     assert out["packet_recall"] == pytest.approx(0.7)
+
+
+def test_credibility_real_detection():
+    from foxtrack.metrics import credibility
+    # 10 false alarms in 100,000 benign packets, 90% recall, alert after 3 packets.
+    out = credibility(3, 10, 100_000, 0.9)
+    assert out["alert_lift"] == pytest.approx(9000)
+    assert out["detection_credible"] and out["delay_credible"]
+    assert out["chance_delay_probability"] == pytest.approx(1 - (1 - 1e-4) ** 4)
+
+
+def test_credibility_rejects_alert_at_false_alarm_rate():
+    from foxtrack.metrics import credibility
+    # Recall is equal to the false alarm rate: the detector does not react to the attack.
+    out = credibility(46, 155, 100_000, 0.002)
+    assert out["alert_lift"] == pytest.approx(1.29, abs=0.01)
+    assert not out["detection_credible"] and not out["delay_credible"]
+
+
+def test_credibility_rejects_late_alert():
+    from foxtrack.metrics import credibility
+    # The detector reacts to the attack, but false alarms alone explain the delay.
+    out = credibility(4310, 120, 100_000, 0.5)
+    assert out["detection_credible"]
+    assert out["chance_delay_probability"] > 0.99
+    assert not out["delay_credible"]
+
+
+def test_credibility_edge_cases():
+    from foxtrack.metrics import credibility
+    missed = credibility(None, 0, 1000, 0.0)
+    assert not missed["detection_credible"] and not missed["delay_credible"]
+    assert np.isnan(missed["chance_delay_probability"])
+    # Zero false alarms: the rate has a floor of one alert in the benign period.
+    clean = credibility(0, 0, 1000, 1.0)
+    assert clean["alert_lift"] == pytest.approx(1000)
+    assert clean["chance_delay_probability"] == pytest.approx(0.001)
+    assert clean["delay_credible"]
+    assert not credibility(5, 0, 0, 1.0)["delay_credible"]
+
+
+def test_onset_evaluation_has_credibility_columns():
+    from foxtrack.metrics import onset_evaluation
+    labels = np.array([0] * 1000 + [1] * 100)
+    scores = labels.astype(float)
+    out = onset_evaluation(scores, labels, onset=1000, threshold=0.5)
+    assert out["delay_credible"] and out["delay_packets"] == 0
+
+
+def test_add_credibility_to_results_table():
+    import pandas as pd
+    from foxtrack.metrics import add_credibility
+    table = pd.DataFrame({
+        "delay_packets": [3.0, np.nan],
+        "false_alarms_before_attack": [10, 0],
+        "benign_packets_before_attack": [100_000, 100_000],
+        "packet_recall": [0.9, 0.0],
+    })
+    out = add_credibility(add_credibility(table))  # a second call must not add duplicate columns
+    assert out["delay_credible"].tolist() == [True, False]
+    assert list(out.columns).count("alert_lift") == 1
