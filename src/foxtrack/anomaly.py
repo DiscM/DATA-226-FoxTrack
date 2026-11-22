@@ -54,10 +54,10 @@ def run_capture(
     target_fprs=(1e-2, 1e-3, 1e-4),
     alert_rules=((1, 1), (3, 5), (10, 20)),
     smooth_windows=(1, 100),
-) -> tuple[pd.DataFrame, pd.DataFrame]:
+):
     """Fit on benign packets, set thresholds, and measure the detection delay.
 
-    Returns (results, test_scores). ``results`` has one row for each
+    Returns (results, test_scores, model). ``results`` has one row for each
     combination of target false positive rate and alert rule.
     """
     from pyspark.sql import functions as F
@@ -73,4 +73,46 @@ def run_capture(
         scored["score"].to_numpy()[is_calib], test["score"].to_numpy(), test["label"].to_numpy(),
         split.onset_in_test, target_fprs, alert_rules, smooth_windows,
     )
-    return pd.DataFrame([{"attack": split.attack, **row} for row in rows]), test
+    return pd.DataFrame([{"attack": split.attack, **row} for row in rows]), test, model
+
+
+def model_artifact(model, results: pd.DataFrame, split: OnsetSplit) -> dict:
+    """The trained detector as plain numbers, for a service that has no Spark.
+
+    The artifact has the scaler (mean, std), the PCA axes, and the alert
+    thresholds of each setting. ``foxtrack.serving`` reads it.
+    """
+    scaler, pca = model.stages[1], model.stages[2]
+    components = pca.pc.toArray().T  # one row for each PCA axis
+    thresholds = [
+        {"target_fpr": float(r.target_fpr), "alert_rule": r.alert_rule, "smooth_window": int(r.smooth_window),
+         "k": int(r.k), "n": int(r.n), "threshold": float(r.threshold)}
+        for r in results.itertuples()
+    ]
+    return {
+        "name": split.attack,
+        "kind": "pca_reconstruction_error",
+        "n_features": int(components.shape[1]),
+        "k_components": int(components.shape[0]),
+        "mean": scaler.mean.toArray().tolist(),
+        "std": scaler.std.toArray().tolist(),
+        "components": components.tolist(),
+        "thresholds": thresholds,
+        "trained_on": {"train_end": split.train_end, "calib_end": split.calib_end,
+                       "first_attack_idx": split.onset, "rows": split.rows},
+    }
+
+
+def demo_window(capture_df, split: OnsetSplit, before: int = 4000, after: int = 6000) -> dict:
+    """Packets near the attack start, for the dashboard replay: features, labels, position."""
+    import numpy as np
+    from pyspark.sql import functions as F
+
+    start = max(split.onset - before, split.calib_end)
+    rows = capture_df.where((F.col("idx") >= start) & (F.col("idx") < split.onset + after)).toPandas().sort_values("idx")
+    return {
+        "features": rows[feature_columns(capture_df)].to_numpy(dtype=np.float32),
+        "labels": rows["label"].to_numpy(dtype=np.int8),
+        "first_idx": np.int64(start),
+        "attack_start": np.int64(split.onset - start),
+    }

@@ -67,8 +67,29 @@ def test_score_agrees_with_numpy(capture):
 
 def test_run_capture_detects_attack_start(capture):
     split = onset_split({"attack": "synthetic", "first_attack_idx": ONSET, "rows": N_ROWS})
-    results, test = anomaly.run_capture(capture, split, k_components=3, target_fprs=(1e-2,), alert_rules=((1, 1), (3, 5)))
+    results, test, _ = anomaly.run_capture(capture, split, k_components=3, target_fprs=(1e-2,), alert_rules=((1, 1), (3, 5)))
     assert len(test) == N_ROWS - split.calib_end
     assert results["detected"].all()
     assert (results["delay_packets"] <= 5).all()
     assert (results["false_alarms_per_100k"] < 5000).all()
+
+
+# ---- Model export and the service scoring code (no Spark) ----
+
+def test_exported_model_gives_the_same_scores_as_spark(capture):
+    from foxtrack.serving import PcaModel
+    split = onset_split({"attack": "synthetic", "first_attack_idx": ONSET, "rows": N_ROWS})
+    results, test, model = anomaly.run_capture(capture, split, k_components=3, target_fprs=(1e-2,))
+    artifact = anomaly.model_artifact(model, results, split)
+    assert artifact["k_components"] == 3 and artifact["n_features"] == N_FEATURES
+    assert {t["alert_rule"] for t in artifact["thresholds"]} == {"threshold", "3 of 5", "10 of 20", "mean of 100"}
+
+    served = PcaModel.from_dict(artifact)
+    window = anomaly.demo_window(capture, split, before=200, after=300)
+    assert window["features"].shape == (500, N_FEATURES)
+    assert window["attack_start"] == 200 and window["labels"][:200].sum() == 0 and window["labels"][200] == 1
+
+    first = int(window["first_idx"])
+    spark_scores = test.set_index("idx").loc[first:first + 499, "score"].to_numpy()
+    assert np.allclose(served.score(window["features"]), spark_scores, rtol=1e-4, atol=1e-7)
+    assert served.threshold("mean of 100", 1e-2) == results.set_index("alert_rule").loc["mean of 100", "threshold"]
