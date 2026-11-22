@@ -117,8 +117,9 @@ function el(name, attrs, text) {
   if (text !== undefined) node.textContent = text;
   return node;
 }
-// The plain threshold and the k-of-n rules use the raw score, which has a very large range.
-const display = (v) => demo.smooth ? v : Math.log1p(v);
+// The score has a very large range (benign near the threshold, an attack 10 to 1,000 times more),
+// so the vertical axis is a log scale. Values less than the lower limit of the axis are drawn at the limit.
+const display = (v) => Math.log10(Math.max(v, demo.floor));
 const xOf = (i) => M.l + (i / (demo.values.length - 1)) * PW;
 const yOf = (v) => M.t + PH - ((display(v) - demo.y0) / (demo.y1 - demo.y0)) * PH;
 
@@ -145,9 +146,9 @@ async function load() {
     const [d, rows] = await Promise.all([getJSON("/api/demo/" + $("model").value + "?" + q), getJSON("/api/results?" + q)]);
     demo = d;
     demo.smooth = demo.alert_rule.startsWith("mean");
-    const shownValues = demo.values.map(display), thr = display(demo.threshold);
-    demo.y0 = 0;
-    demo.y1 = Math.max(...shownValues, thr) * 1.06 || 1;
+    demo.floor = demo.threshold / 30;
+    demo.y0 = Math.log10(demo.floor);
+    demo.y1 = Math.log10(Math.max(Math.max(...demo.values), demo.threshold * 3) * 1.5);
     // False alarm events before the attack, at each position (alerts less than 100 packets apart are one event).
     demo.eventsAt = new Int32Array(demo.values.length); demo.alertsAt = new Int32Array(demo.values.length);
     let events = 0, last = -1e9, count = 0;
@@ -162,7 +163,7 @@ async function load() {
     demo.malAt = new Int32Array(demo.values.length); let mal = 0, hit = 0; demo.hitAt = new Int32Array(demo.values.length);
     for (let i = 0; i < demo.values.length; i++) { if (demo.labels[i]) { mal++; if (demo.alerts[i]) hit++; } demo.malAt[i] = mal; demo.hitAt[i] = hit; }
     shown = demo.values.length;
-    $("chartTitle").textContent = (demo.smooth ? "Mean of the detector score, last 100 packets" : "Detector score for each packet (log scale)") + " – " + demo.title;
+    $("chartTitle").textContent = (demo.smooth ? "Mean of the detector score, last 100 packets" : "Detector score for each packet") + " (log scale) – " + demo.title;
     draw(); tiles(); table(rows);
   } catch (e) { $("error").textContent = "Cannot load the data: " + e.message; }
 }
@@ -172,10 +173,10 @@ function draw() {
   const n = demo.values.length, a = demo.attack_start;
   // Attack period and gridlines
   svg.append(el("rect", { x: xOf(a), y: M.t, width: M.l + PW - xOf(a), height: PH, fill: "var(--attack-band)" }));
-  for (let g = 0; g <= 4; g++) {
-    const v = demo.y0 + (demo.y1 - demo.y0) * g / 4, y = M.t + PH - PH * g / 4;
+  for (let e = Math.ceil(demo.y0); e <= Math.floor(demo.y1); e++) {
+    const y = M.t + PH - ((e - demo.y0) / (demo.y1 - demo.y0)) * PH, v = Math.pow(10, e);
     svg.append(el("line", { x1: M.l, x2: M.l + PW, y1: y, y2: y, stroke: "var(--grid)", "stroke-width": 1 }));
-    svg.append(el("text", { x: M.l - 8, y: y + 4, "text-anchor": "end" }, v.toFixed(v < 10 ? 2 : 0)));
+    svg.append(el("text", { x: M.l - 8, y: y + 4, "text-anchor": "end" }, v >= 1 ? fmt(v) : String(Number(v.toPrecision(1)))));
   }
   svg.append(el("line", { x1: M.l, x2: M.l + PW, y1: M.t + PH, y2: M.t + PH, stroke: "var(--axis)", "stroke-width": 1 }));
   // X ticks: packets from the attack start
@@ -281,7 +282,8 @@ function showTip(i) {
   const tip = $("tip"), rel = hoverIdx - demo.attack_start;
   tip.replaceChildren();
   const line = (strong, rest) => { const div = document.createElement("div"); const b = document.createElement("b"); b.textContent = strong; div.append(b, " " + rest); tip.append(div); };
-  line(display(demo.values[hoverIdx]).toFixed(3), "score (threshold " + display(demo.threshold).toFixed(3) + ")");
+  const sig = (v) => Number(v.toPrecision(3)).toLocaleString("en-US", { maximumSignificantDigits: 3 });
+  line(sig(demo.values[hoverIdx]), "score (threshold " + sig(demo.threshold) + ")");
   line((rel >= 0 ? "+" : "−") + fmt(Math.abs(rel)), "packets from the attack start");
   line(demo.alerts[hoverIdx] ? "Alert" : "No alert", demo.labels[hoverIdx] ? "· malicious packet" : "· benign packet");
   tip.style.display = "block";

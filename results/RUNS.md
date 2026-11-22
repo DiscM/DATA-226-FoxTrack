@@ -25,13 +25,14 @@ dataset `ymirsky/network-attack-dataset-kitsune` (notebook 01) or the output of 
 | # | Kaggle notebook | Version | Code commit | Completed | Run time | Log | Result table |
 |---|---|---|---|---|---|---|---|
 | 1 | Notebook 01 (ETL), run by the project owner | - | 538bbc5 or later | 2026-11-21 23:02 | not recorded | not copied | `summary.json` in the Kaggle output |
-| 2 | `foxtrack-02-baseline-anomaly` | 1 | e373171 | 2026-11-21 23:52 | 12 min 34 s | `02_baseline_v1.log` | replaced by run 8 (see git history of `baseline_pca.csv`) |
+| 2 | `foxtrack-02-baseline-anomaly` | 1 | e373171 | 2026-11-21 23:52 | 12 min 34 s | `02_baseline_v1.log` | replaced by run 9 (see git history of `baseline_pca.csv`) |
 | 3 | `foxtrack-03-supervised-leave-one-out` | 1 | 91c856c | 2026-11-22 00:36 | 47 min 50 s | `03_supervised_v1.log` | `supervised_leave_one_out.csv` |
 | 4 | `foxtrack-04-confound-clock` | 1 | e6f9ea8 | 2026-11-22, before 01:37 | 26 min 40 s | `04_confound_clock_v1.log` | `clock_auc.csv` |
 | 5 | `foxtrack-04-confound-time-matched` | 1 | e6f9ea8 | 2026-11-22, before 01:37 | 26 min 56 s | `04_confound_time_matched_v1.log` | `supervised_time_matched.csv` |
 | 6 | `foxtrack-04-confound-drop-clock` | 1 | e6f9ea8 | 2026-11-22 01:39 | 41 min 57 s | `04_confound_drop_clock_v1.log` | `supervised_drop_clock.csv` |
-| 7 | `foxtrack-02-baseline-anomaly` | 2 | 27069f9 | 2026-11-22 01:48 | 10 min 39 s | `02_baseline_v2_moving_mean.log` | replaced by run 8 |
-| 8 | `foxtrack-02-baseline-anomaly` | 3 | 6c4ff4c | 2026-11-22 02:12 | 10 min 35 s | `02_baseline_v3_events_placebo.log` | `baseline_pca.csv` |
+| 7 | `foxtrack-02-baseline-anomaly` | 2 | 27069f9 | 2026-11-22 01:48 | 10 min 39 s | `02_baseline_v2_moving_mean.log` | replaced by run 9 |
+| 8 | `foxtrack-02-baseline-anomaly` | 3 | 6c4ff4c | 2026-11-22 02:12 | 10 min 35 s | `02_baseline_v3_events_placebo.log` | same numbers as run 9 |
+| 9 | `foxtrack-02-baseline-anomaly` | 4 | fb9e2d9 | 2026-11-22 02:42 | 13 min 33 s | `02_baseline_v4_model_export.log` | `baseline_pca.csv`, `models/pca_baseline/`, `demo_data/` |
 
 Notes:
 
@@ -42,6 +43,14 @@ Notes:
   `add_credibility`, from the columns that the run printed.
 - `auc_by_attack.csv` was calculated after the runs, from the score files of runs 2, 3, 5,
   and 6, with `scripts/analysis/auc_all.py`.
+
+## Service check
+
+The service scores the demo packets with the exported models of run 9. For each of the nine
+recordings, the largest relative difference from the scores of the Kaggle run is less than
+1e-10, and the detection delays of the replay are equal to the delays of the full run (for
+example Mirai 42 packets and OS Scan 30 packets, rule "mean of 100", target rate 0.0001).
+`reports/figures/dashboard_mirai.png` is a screenshot of the dashboard with these models.
 
 ## Data that is not in this repository
 
