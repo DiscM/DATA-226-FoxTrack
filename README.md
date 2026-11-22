@@ -130,6 +130,14 @@ and the limits in the project report).
 - `results/` has the result tables of the Kaggle runs.
 - `results/RUNS.md` is the record of each run: code version, time, log, and corrections.
 - `results/logs/` has a copy of the Kaggle log of each run.
+- `results/mlflow/` has the MLflow record of the final baseline run: the database file and a
+  CSV summary of the nine runs (parameters and metrics). To open it in the MLflow page:
+
+```bash
+mlflow ui --backend-store-uri sqlite:///results/mlflow/baseline_pca_run9.db
+```
+
+- `reports/figures/dashboard_*.png` are screenshots of the dashboard with the real models.
 - `reports/figures/alert_rate_near_attack_start.png` shows the alert rate before and after
   the labelled attack start for each capture. To make it again, download the score files
   of notebooks 02 and 03, then run:
