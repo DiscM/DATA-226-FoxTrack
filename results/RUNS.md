@@ -33,10 +33,14 @@ dataset `ymirsky/network-attack-dataset-kitsune` (notebook 01) or the output of 
 | 7 | `foxtrack-02-baseline-anomaly` | 2 | 27069f9 | 2026-11-22 01:48 | 10 min 39 s | `02_baseline_v2_moving_mean.log` | replaced by run 9 |
 | 8 | `foxtrack-02-baseline-anomaly` | 3 | 6c4ff4c | 2026-11-22 02:12 | 10 min 35 s | `02_baseline_v3_events_placebo.log` | same numbers as run 9 |
 | 9 | `foxtrack-02-baseline-anomaly` | 4 | fb9e2d9 | 2026-11-22 02:42 | 13 min 33 s | `02_baseline_v4_model_export.log` | `baseline_pca.csv`, `models/pca_baseline/`; demo packets in the Kaggle output |
+| 10 | `foxtrack-02-baseline-anomaly` | 5 | c6ff91d | 2026-11-22 07:00 | 10 min 19 s | `02_baseline_v5_rerun_check.log` | same numbers as run 9 |
 
 Notes:
 
 - Run times are the `Wall time` lines of the log (the sum, if the log has two).
+- Run 10 is a check after the history of `main` was rewritten to remove the dataset packets.
+  It used the rewritten code, and its results are equal to the results of run 9 (largest
+  relative difference less than 1e-14).
 - The exact completion time of runs 4 and 5 was not recorded. They were complete when the
   status was read, before 01:37.
 - The credibility columns in `supervised_leave_one_out.csv` were calculated after run 3 with
