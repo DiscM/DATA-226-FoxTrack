@@ -63,7 +63,9 @@ tests/
 
 - **Detection delay:** packets from the start of an attack episode to the first alert.
 - **False alarms:** alerts on benign packets, for each 100,000 benign packets.
-- **Alert logic:** an alert occurs when k of the last n scores are more than a threshold.
+- **Alert rules:** a plain threshold; k of the last n scores more than the threshold; and a
+  moving mean of the last 100 scores. The moving mean removes single high scores of benign
+  packets, which cause most false alarms.
 - **Credibility check:** a delay counts only if the detector reacts to the attack (the alert
   rate on malicious packets is at least 5 times the benign alert rate), and false alarms
   alone would give an alert that quickly in at most 5% of cases.

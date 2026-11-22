@@ -218,3 +218,64 @@ def ranking_metrics(scores: np.ndarray, labels: np.ndarray) -> dict:
         "roc_auc": float(roc_auc_score(labels, scores)),
         "pr_auc": float(average_precision_score(labels, scores)),
     }
+
+
+def moving_mean(scores: np.ndarray, window: int) -> np.ndarray:
+    """Mean of the last ``window`` values of log(1 + score), for each packet.
+
+    One benign packet with a high score gives a false alarm. The mean removes
+    such single peaks, but an attack keeps the mean high. The window uses only
+    past packets, so the rule can run online. The logarithm limits the effect
+    of one extreme score. ``window`` = 1 returns the scores with no change.
+    """
+    scores = np.asarray(scores, dtype=np.float64)
+    if window < 1:
+        raise ValueError("window must be 1 or more")
+    if window == 1:
+        return scores
+    csum = np.concatenate(([0.0], np.cumsum(np.log1p(np.maximum(scores, 0.0)))))
+    idx = np.arange(1, scores.size + 1)
+    start = np.maximum(idx - window, 0)
+    return (csum[idx] - csum[start]) / (idx - start)
+
+
+def alert_rule_name(k: int, n: int, smooth_window: int) -> str:
+    if smooth_window > 1:
+        return f"mean of {smooth_window}"
+    return "threshold" if (k, n) == (1, 1) else f"{k} of {n}"
+
+
+def evaluate_grid(
+    calib_scores: np.ndarray,
+    test_scores: np.ndarray,
+    labels: np.ndarray,
+    onset: int,
+    target_fprs=(1e-2, 1e-3, 1e-4),
+    alert_rules=((1, 1), (3, 5), (10, 20)),
+    smooth_windows=(1, 100),
+) -> list[dict]:
+    """Evaluate one capture for each threshold and each alert rule.
+
+    ``calib_scores`` are benign packets immediately before ``test_scores``,
+    the two in packet sequence. The threshold for a target false positive
+    rate comes from the calibration packets.
+
+    Alert rules: a plain threshold, k of the last n scores (``alert_rules``),
+    and a moving mean of the score (each window more than 1 in
+    ``smooth_windows``). The threshold for a moving mean comes from the moving
+    mean of the calibration packets, so its unit is different.
+    """
+    calib_scores = np.asarray(calib_scores, dtype=np.float64)
+    test_scores = np.asarray(test_scores, dtype=np.float64)
+    rows = []
+    for window in smooth_windows:
+        smoothed = moving_mean(np.concatenate((calib_scores, test_scores)), window)
+        calib, test = smoothed[: calib_scores.size], smoothed[calib_scores.size:]
+        rules = alert_rules if window == 1 else ((1, 1),)
+        for fpr in target_fprs:
+            threshold = float(np.quantile(calib, 1 - fpr))
+            for k, n in rules:
+                result = onset_evaluation(test, labels, onset, threshold, k, n)
+                rows.append({"target_fpr": fpr, "alert_rule": alert_rule_name(k, n, window),
+                             "smooth_window": window, **result})
+    return rows

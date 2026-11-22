@@ -7,10 +7,9 @@ the benign training traffic gets a high score.
 
 from __future__ import annotations
 
-import numpy as np
 import pandas as pd
 
-from foxtrack.metrics import onset_evaluation
+from foxtrack.metrics import evaluate_grid
 from foxtrack.split import OnsetSplit
 
 
@@ -54,6 +53,7 @@ def run_capture(
     k_components: int = 20,
     target_fprs=(1e-2, 1e-3, 1e-4),
     alert_rules=((1, 1), (3, 5), (10, 20)),
+    smooth_windows=(1, 100),
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
     """Fit on benign packets, set thresholds, and measure the detection delay.
 
@@ -65,17 +65,12 @@ def run_capture(
     idx = F.col("idx")
     model = fit_pca_detector(capture_df.where(idx < split.train_end), k_components)
 
-    calib = score(model, capture_df.where((idx >= split.train_end) & (idx < split.calib_end)))
-    calib_scores = calib.select("score").toPandas()["score"].to_numpy()
+    scored = score(model, capture_df.where(idx >= split.train_end)).toPandas().sort_values("idx")
+    is_calib = scored["idx"].to_numpy() < split.calib_end
+    test = scored[~is_calib]
 
-    test = score(model, capture_df.where(idx >= split.calib_end)).toPandas().sort_values("idx")
-    scores = test["score"].to_numpy()
-    labels = test["label"].to_numpy()
-
-    rows = []
-    for fpr in target_fprs:
-        threshold = float(np.quantile(calib_scores, 1 - fpr))
-        for k, n in alert_rules:
-            result = onset_evaluation(scores, labels, split.onset_in_test, threshold, k, n)
-            rows.append({"attack": split.attack, "target_fpr": fpr, **result})
-    return pd.DataFrame(rows), test
+    rows = evaluate_grid(
+        scored["score"].to_numpy()[is_calib], test["score"].to_numpy(), test["label"].to_numpy(),
+        split.onset_in_test, target_fprs, alert_rules, smooth_windows,
+    )
+    return pd.DataFrame([{"attack": split.attack, **row} for row in rows]), test

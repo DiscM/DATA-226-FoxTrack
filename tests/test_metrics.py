@@ -133,3 +133,47 @@ def test_add_credibility_to_results_table():
     out = add_credibility(add_credibility(table))  # a second call must not add duplicate columns
     assert out["delay_credible"].tolist() == [True, False]
     assert list(out.columns).count("alert_lift") == 1
+
+
+def test_moving_mean_uses_only_past_packets():
+    from foxtrack.metrics import moving_mean
+    scores = np.array([0.0, 0.0, np.e - 1, 0.0, 0.0])  # log1p gives 0, 0, 1, 0, 0
+    assert moving_mean(scores, 2).tolist() == pytest.approx([0, 0, 0.5, 0.5, 0])
+    assert moving_mean(scores, 3)[:3].tolist() == pytest.approx([0, 0, 1 / 3])
+    assert moving_mean(scores, 1) is not None and moving_mean(scores, 1).tolist() == scores.tolist()
+    with pytest.raises(ValueError):
+        moving_mean(scores, 0)
+
+
+def test_evaluate_grid_moving_mean_removes_single_peaks():
+    from foxtrack.metrics import evaluate_grid
+    rng = np.random.default_rng(0)
+    # Benign: low scores with rare single peaks. Attack: a moderate, sustained increase.
+    calib = rng.random(5000) * 0.1
+    calib[::500] = 5.0
+    benign = rng.random(5000) * 0.1
+    benign[::500] = 5.0
+    attack = 1.0 + rng.random(2000) * 0.1
+    test = np.concatenate((benign, attack))
+    labels = np.concatenate((np.zeros(5000, int), np.ones(2000, int)))
+
+    rows = evaluate_grid(calib, test, labels, onset=5000, target_fprs=(1e-3,), smooth_windows=(1, 50))
+    by_rule = {r["alert_rule"]: r for r in rows}
+    assert set(by_rule) == {"threshold", "3 of 5", "10 of 20", "mean of 50"}
+    # The plain threshold is set by the peaks, so it does not see the moderate attack.
+    assert by_rule["threshold"]["packet_recall"] == 0
+    smooth = by_rule["mean of 50"]
+    assert smooth["false_alarms_before_attack"] == 0
+    assert smooth["packet_recall"] > 0.95
+    assert smooth["delay_packets"] < 50
+    assert smooth["smooth_window"] == 50 and smooth["delay_credible"]
+
+
+def test_evaluate_grid_window_one_is_the_plain_threshold():
+    from foxtrack.metrics import evaluate_grid, onset_evaluation
+    rng = np.random.default_rng(1)
+    calib, test = rng.random(1000), np.concatenate((rng.random(500), rng.random(500) + 1))
+    labels = np.concatenate((np.zeros(500, int), np.ones(500, int)))
+    row = evaluate_grid(calib, test, labels, 500, target_fprs=(1e-2,), alert_rules=((1, 1),), smooth_windows=(1,))[0]
+    direct = onset_evaluation(test, labels, 500, float(np.quantile(calib, 0.99)))
+    assert {k: row[k] for k in direct} == direct

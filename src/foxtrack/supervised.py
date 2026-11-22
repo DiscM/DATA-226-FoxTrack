@@ -12,11 +12,10 @@ as for the baseline. The results are thus comparable.
 
 from __future__ import annotations
 
-import numpy as np
 import pandas as pd
 
 from foxtrack.anomaly import feature_columns
-from foxtrack.metrics import onset_evaluation, ranking_metrics
+from foxtrack.metrics import evaluate_grid, ranking_metrics
 from foxtrack.split import OnsetSplit
 
 
@@ -155,6 +154,7 @@ def run_fold(
     target_fprs=(1e-2, 1e-3, 1e-4),
     alert_rules=((1, 1), (3, 5), (10, 20)),
     features: list[str] | None = None,
+    smooth_windows=(1, 100),
     **params,
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
     """Train on all captures but ``split.attack``, then test on that capture.
@@ -172,16 +172,14 @@ def run_fold(
     held = assemble(capture_df.where(idx >= split.train_end), features)
     scored = score(model, held).toPandas().sort_values("idx")
     is_calib = scored["idx"].to_numpy() < split.calib_end
-    calib_scores = scored["score"].to_numpy()[is_calib]
     test = scored[~is_calib]
     scores = test["score"].to_numpy()
     labels = test["label"].to_numpy()
 
     ranking = ranking_metrics(scores, labels)
-    rows = []
-    for fpr in target_fprs:
-        threshold = float(np.quantile(calib_scores, 1 - fpr))
-        for k, n in alert_rules:
-            result = onset_evaluation(scores, labels, split.onset_in_test, threshold, k, n)
-            rows.append({"attack": split.attack, "model": model_name, "target_fpr": fpr, **result, **ranking})
+    grid = evaluate_grid(
+        scored["score"].to_numpy()[is_calib], scores, labels,
+        split.onset_in_test, target_fprs, alert_rules, smooth_windows,
+    )
+    rows = [{"attack": split.attack, "model": model_name, **row, **ranking} for row in grid]
     return pd.DataFrame(rows), test
