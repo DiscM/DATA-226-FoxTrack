@@ -14,7 +14,8 @@ It uses the [Kitsune Network Attack Dataset](https://www.kaggle.com/datasets/ymi
 **Primary results**
 
 - A model trained on normal traffic only gives a credible early detection for five of nine
-  attacks, with zero false alarm events in seven of nine recordings.
+  attacks, with zero false alarm events in seven of nine recordings. With other settings
+  the count is four or five, and the detection delay of two attacks changes.
 - Supervised models looked better at first, but they had learned that attacks come near the
   end of each recording, not what an attack looks like. A test confirms this.
 - The system is a proof of concept. It is not ready for a production network.
@@ -23,7 +24,7 @@ It uses the [Kitsune Network Attack Dataset](https://www.kaggle.com/datasets/ymi
 |---|---|
 | Data processing | Apache Spark (PySpark), Parquet |
 | Models | Spark MLlib: PCA, logistic regression, gradient-boosted trees |
-| Experiment records | MLflow |
+| Experiment records and model source | MLflow |
 | Service | FastAPI, NumPy |
 | Dashboard | One HTML page, served by the service |
 | Compute | Kaggle Notebooks (training), a laptop (service) |
@@ -146,7 +147,7 @@ pip install -r requirements.txt
 pytest
 ```
 
-There are 67 tests.
+There are 69 tests.
 
 ### 5. Train the models again
 
@@ -164,6 +165,7 @@ The training runs on Kaggle, because the dataset is already there and a Kaggle N
 | `02_baseline_anomaly` | Output of notebook 01 | Train and evaluate the baseline; export the models | 11 to 14 minutes |
 | `03_supervised_leave_one_out` | Output of notebook 01 | Train and evaluate the supervised models | 48 minutes |
 | `04_time_confound_test` | Output of notebook 01 | Test if the supervised models learned the time | 27 to 42 minutes |
+| `05_settings_test` | Output of notebook 01 | Train the baseline with other settings | 19 minutes |
 
 You do not need to run the notebooks to see their results. The folder `notebooks/executed/`
 has each notebook with the output of its Kaggle run. GitHub shows them in the browser.
@@ -171,7 +173,7 @@ has each notebook with the output of its Kaggle run. GitHub shows them in the br
 ### Repository layout
 
 ```
-notebooks/               the four Kaggle notebooks
+notebooks/               the five Kaggle notebooks
 notebooks/executed/      the same notebooks with the output of their Kaggle runs
 src/foxtrack/etl.py          CSV to Parquet with Spark
 src/foxtrack/split.py        train, calibration, and test ranges
@@ -186,7 +188,7 @@ demo_data/               10,000 packets near each attack start (not in git, see 
 results/                 result tables, run logs, MLflow record, and RUNS.md
 reports/figures/         figures and dashboard screenshots
 scripts/                 figure script and analysis scripts
-tests/                   67 tests
+tests/                   69 tests
 ```
 
 ---
@@ -432,6 +434,48 @@ security task, as a common fault of machine learning in security.
   the exported models. The largest relative difference from the Spark scores is less than
   1e-10, and the delays in the replay are equal to the delays of the full run.
 
+#### 4.5 Test of other settings
+
+The results above use two choices: the benign period is divided 70% / 15% / 15%, and the
+moving mean uses the last 100 packets. Notebook 05 trained the baseline again with a
+division of 60% / 20% / 20%, and with windows of 50, 100, and 200 packets. The table uses a
+target false positive rate of 0.0001.
+
+| Division | Alert rule | Credible detections (of 9) | Recordings with zero false alarm events (of 9) |
+|---|---|---|---|
+| 70/15/15 | 3 of 5 | 5 | 7 |
+| 70/15/15 | Mean of 50 | 3 | 3 |
+| 70/15/15 | Mean of 100 | 4 | 4 |
+| 70/15/15 | Mean of 200 | 4 | 4 |
+| 60/20/20 | 3 of 5 | 4 | 7 |
+| 60/20/20 | Mean of 50 | 4 | 3 |
+| 60/20/20 | Mean of 100 | 5 | 5 |
+| 60/20/20 | Mean of 200 | 4 | 4 |
+
+**The window size has a small effect.** With the division 70/15/15, the delay for Mirai is
+42, 42, and 49 packets for windows of 50, 100, and 200. For OS Scan it is 29, 30, and 30.
+
+**The division has a large effect on two attacks.** Credible delays in packets, with the
+mean of 100:
+
+| Attack | Division 70/15/15 | Division 60/20/20 |
+|---|---|---|
+| OS Scan | 30 | 30 |
+| SSL Renegotiation | 4,035 | 4,035 |
+| Mirai | 42 | 910 |
+| SSDP Flood | 4,077 | not credible |
+| Active Wiretap | not credible | 3,911 |
+| SYN DoS | not credible | 27,332 |
+
+- **Stable results:** the detection of OS Scan and SSL Renegotiation, with the same delays.
+  ARP MitM, Fuzzing, and Video Injection are not detected in any setting.
+- **Results that depend on the division:** the delay for Mirai, and the credibility of
+  SSDP Flood and Active Wiretap. For Mirai, the recall stays at 99.6% or more, but the
+  threshold changes from 0.13 to 0.87, because the second calibration range has a period of
+  unusual benign traffic. The alert thus comes later.
+- **The conclusion that stays:** four or five of nine attacks have a credible detection.
+  The exact delay of an attack depends on the benign traffic that sets the threshold.
+
 ### 5. Limits
 
 - **The labels mark time periods more than single packets.** Three attack starts are round
@@ -446,7 +490,8 @@ security task, as a common fault of machine learning in security.
 - **Four attacks are not detected:** ARP MitM, SYN DoS, Fuzzing, and Video Injection. A
   PCA is a simple model.
 - **The benign traffic changes with time.** The measured false alarm rate is more than the
-  target in most recordings. In Active Wiretap the change is large.
+  target in most recordings. In Active Wiretap the change is large. The threshold thus
+  depends on the benign packets that set it, and so does the delay (section 4.5).
 - **The data comes from two small lab networks.** A model that is trained on one network
   does not transfer to a different one.
 - **The credibility check assumes that false alarm events occur at a constant rate.** It is
@@ -473,8 +518,9 @@ A production system would need:
 ### 7. Conclusions
 
 1. **A model of normal traffic is the trustworthy method for early detection on this
-   dataset.** It detects five of nine attacks with zero false alarm events in the test, and
-   it cannot learn when attacks occur, because it sees no labels.
+   dataset.** It detects five of nine attacks with zero false alarm events in the main
+   setting, and four or five with other settings. It cannot learn when attacks occur,
+   because it sees no labels.
 2. **The false alarm rate, not the model score, limits early detection.** A short delay is
    proof of early detection only if false alarms cannot explain it.
 3. **Good supervised results on this type of dataset need a check for the time in the
@@ -486,6 +532,8 @@ A production system would need:
 - `results/RUNS.md` lists each Kaggle run: the notebook version, the code version, the run
   time, the log, and the corrections that later results made.
 - `results/logs/` has a copy of the Kaggle log of each run.
+- `results/mlflow/` also has the MLflow records of the confound test (three files) and of
+  the settings test.
 - `results/mlflow/baseline/` has the MLflow record of the final baseline run: the database,
   the model file of each run, and a CSV summary. The service can load its models from it
   (see Quick start, step 3). To open the record in the MLflow page:

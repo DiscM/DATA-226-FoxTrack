@@ -1,0 +1,11 @@
+split,alert_rule,credible,zero_events,placebo
+60/20/20,3 of 5,4,7,0
+60/20/20,mean of 100,5,5,1
+60/20/20,mean of 200,4,4,2
+60/20/20,mean of 50,4,3,1
+60/20/20,threshold,3,2,0
+70/15/15,3 of 5,5,7,0
+70/15/15,mean of 100,4,4,0
+70/15/15,mean of 200,4,4,0
+70/15/15,mean of 50,3,3,0
+70/15/15,threshold,3,0,1

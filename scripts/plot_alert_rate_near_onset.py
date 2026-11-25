@@ -55,6 +55,9 @@ def main(scores_dir: Path, out: Path):
         pd.read_csv(REPO / "results" / "supervised_time_matched.csv"),
     ])
     results = results[(results.target_fpr == TARGET_FPR) & (results.k == 1) & (results.n == 1)]
+    if "smooth_window" in results.columns:
+        # Use the plain threshold. Tables of earlier runs have no moving mean rows.
+        results = results[results.smooth_window.fillna(1) == 1]
     results = results.set_index(["attack", "model"])
 
     plt.rcParams.update({"font.family": "DejaVu Sans", "font.size": 9})

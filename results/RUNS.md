@@ -13,12 +13,13 @@ output of each cell. The Kaggle username in file paths is replaced with `<kaggle
 | `01_kaggle_setup_etl_run.ipynb` | 1 |
 | `02_baseline_anomaly_run.ipynb` | 10 |
 | `03_supervised_leave_one_out_run.ipynb` | 3 |
-| `04_time_confound_test_clock_run.ipynb` | 4 |
-| `04_time_confound_test_time_matched_run.ipynb` | 5 |
-| `04_time_confound_test_drop_clock_run.ipynb` | 6 |
+| `04_time_confound_test_clock_run.ipynb` | 11 |
+| `04_time_confound_test_time_matched_run.ipynb` | 12 |
+| `04_time_confound_test_drop_clock_run.ipynb` | 13 |
+| `05_settings_test_run.ipynb` | 14 |
 
-Runs 3 to 6 used the code before the event count and the placebo test were added. Their
-tables thus have fewer columns than the tables of run 10.
+Run 3 used the code before the event count and the placebo test were added. Its table
+thus has fewer columns than the tables of the later runs.
 
 Notebook 01 read 59.7 GB of feature files and wrote 6.4 GB of Parquet data
 (21,017,597 rows).
@@ -54,10 +55,21 @@ dataset `ymirsky/network-attack-dataset-kitsune` (notebook 01) or the output of 
 | 8 | `foxtrack-02-baseline-anomaly` | 3 | 6c4ff4c | 2026-11-22 02:12 | 10 min 35 s | `02_baseline_v3_events_placebo.log` | same numbers as run 9 |
 | 9 | `foxtrack-02-baseline-anomaly` | 4 | fb9e2d9 | 2026-11-22 02:42 | 13 min 33 s | `02_baseline_v4_model_export.log` | `baseline_pca.csv`, `models/pca_baseline/`; demo packets in the Kaggle output |
 | 10 | `foxtrack-02-baseline-anomaly` | 5 | c6ff91d | 2026-11-22 07:00 | 10 min 19 s | `02_baseline_v5_rerun_check.log` | same numbers as run 9 |
+| 11 | `foxtrack-04-confound-clock` | 2 | 445264e | 2026-11-25 21:03 or before | 27 min 20 s | `04_confound_clock_v2_mlflow.log` | `clock_auc.csv` |
+| 12 | `foxtrack-04-confound-time-matched` | 2 | 445264e | 2026-11-25 21:03 or before | 29 min 7 s | `04_confound_time_matched_v2_mlflow.log` | `supervised_time_matched.csv` |
+| 13 | `foxtrack-04-confound-drop-clock` | 2 | 445264e | 2026-11-25 21:03 or before | 42 min 20 s | `04_confound_drop_clock_v2_mlflow.log` | `supervised_drop_clock.csv` |
+| 14 | `foxtrack-05-settings-test` | 1 | 445264e | 2026-11-25 21:03 or before | 18 min 51 s | `05_settings_test_v1.log` | `settings_test.csv`, `settings_test_summary.csv` |
 
 Notes:
 
 - Run times are the `Wall time` lines of the log (the sum, if the log has two).
+- Runs 11 to 13 repeat runs 4 to 6 with a record in MLflow. The results are the same: the
+  ROC-AUC of each test recording is equal for the trees, the clock ROC-AUC changes by less
+  than 0.0004, and the same 10 clock features are found. The tables of runs 11 to 13
+  replaced the tables of runs 4 to 6, and they have the event count and the placebo columns.
+- Run 14 is the test of other settings. Its rows for the division 70/15/15 agree with run 10.
+- The four runs of 2026-11-25 ran at the same time. One status check at 21:03 found all of
+  them complete, so the exact completion time of each one was not recorded.
 - Run 10 is a check after the history of `main` was rewritten to remove the dataset packets.
   It used the rewritten code, and its results are equal to the results of run 9 (largest
   relative difference less than 1e-14).
@@ -86,7 +98,8 @@ example Mirai 42 packets and OS Scan 30 packets, rule "mean of 100", target rate
 - **Score for each packet** (45 Parquet files, approximately 335 MB). They are in the
   output of the Kaggle notebooks, folders `baseline/scores`, `supervised/scores`, and
   `confound/scores`. The figure and `auc_by_attack.csv` come from these files.
-- **MLflow records.** Each Kaggle run has a file `mlflow.db` in its output. The record of
+- **MLflow records.** Each Kaggle run has a file `mlflow.db` in its output. The records of
+  runs 11 to 14 are in `results/mlflow/` (four `.db` files, with no run files). The record of
   run 10 is in this repository, in `results/mlflow/baseline/`: the database, the model file
   of each run (`mlruns/`), and a CSV summary. The service can load its models from it. The
   files in `models/pca_baseline/` are copies of the model files of this record.

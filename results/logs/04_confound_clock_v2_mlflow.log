@@ -1,0 +1,176 @@
+/usr/local/lib/python3.13/dist-packages/nbformat/validator.py:434: MissingIDFieldWarning: Cell is missing an id field, this will become a hard error in future nbformat versions. You may want to use `normalize()` on your notebooks before validations (available since nbformat 5.1.4). Previous versions of nbformat are fixing this issue transparently, and will stop doing so in the future.
+  _validate(nbdict, ref, version, version_minor, relax_add_props)
+0.00s - Debugger warning: It seems that frozen modules are being used, which may
+0.00s - make the debugger miss breakpoints. Please pass -Xfrozen_modules=off
+0.00s - to python to disable frozen modules.
+0.00s - Note: Debugging will proceed. Set PYDEVD_DISABLE_FILE_VALIDATION=1 to disable this validation.
+0.00s - Debugger warning: It seems that frozen modules are being used, which may
+0.00s - make the debugger miss breakpoints. Please pass -Xfrozen_modules=off
+0.00s - to python to disable frozen modules.
+0.00s - Note: Debugging will proceed. Set PYDEVD_DISABLE_FILE_VALIDATION=1 to disable this validation.
+Code version: 445264e Record the confound test in MLflow and add a test of other settings
+Parquet data: /kaggle/input/notebooks/<kaggle-user>/notebookabc04dfe5a/kitsune_parquet
+2026/11/25 20:20:10 INFO mlflow.store.db.utils: Creating initial MLflow database tables...
+
+2026/11/25 20:20:10 INFO mlflow.store.db.utils: Creating initial MLflow database tables...
+2026/11/25 20:20:10 INFO mlflow.store.db.utils: Updating database tables
+
+2026/11/25 20:20:10 INFO mlflow.store.db.utils: Updating database tables
+2026/11/25 20:20:13 INFO mlflow.tracking.fluent: Experiment with name 'time_confound_test' does not exist. Creating a new experiment.
+
+2026/11/25 20:20:13 INFO mlflow.tracking.fluent: Experiment with name 'time_confound_test' does not exist. Creating a new experiment.
+WARNING: Using incubator modules: jdk.incubator.vector
+WARNING: Using incubator modules: jdk.incubator.vector
+
+WARNING: Using incubator modules: jdk.incubator.vector
+Using Spark's default log4j profile: org/apache/spark/log4j2-defaults.properties
+Setting default log level to "WARN".
+To adjust logging level use sc.setLogLevel(newLevel). For SparkR, use setLogLevel(newLevel).
+Using Spark's default log4j profile: org/apache/spark/log4j2-defaults.properties
+Setting default log level to "WARN".
+To adjust logging level use sc.setLogLevel(newLevel). For SparkR, use setLogLevel(newLevel).
+
+Using Spark's default log4j profile: org/apache/spark/log4j2-defaults.properties
+Setting default log level to "WARN".
+To adjust logging level use sc.setLogLevel(newLevel). For SparkR, use setLogLevel(newLevel).
+26/11/25 20:20:17 WARN NativeCodeLoader: Unable to load native-hadoop library for your platform... using builtin-java classes where applicable
+26/11/25 20:20:17 WARN NativeCodeLoader: Unable to load native-hadoop library for your platform... using builtin-java classes where applicable
+
+26/11/25 20:20:17 WARN NativeCodeLoader: Unable to load native-hadoop library for your platform... using builtin-java classes where applicable
+Variant: clock | features: 115
+26/11/25 20:20:33 WARN SparkStringUtils: Truncated the string representation of a plan since it was too large. This behavior can be adjusted by setting 'spark.sql.debug.maxToStringFields'.
+26/11/25 20:20:33 WARN SparkStringUtils: Truncated the string representation of a plan since it was too large. This behavior can be adjusted by setting 'spark.sql.debug.maxToStringFields'.
+
+26/11/25 20:20:33 WARN SparkStringUtils: Truncated the string representation of a plan since it was too large. This behavior can be adjusted by setting 'spark.sql.debug.maxToStringFields'.
+### CLOCK_IMPORTANCE
+,importance
+f76,0.1951
+f79,0.1947
+f78,0.1724
+f61,0.0575
+f12,0.0414
+f62,0.0369
+f112,0.0338
+f64,0.0314
+f63,0.0298
+f58,0.027
+f54,0.0241
+f110,0.0217
+f75,0.0207
+f14,0.0185
+f113,0.0162
+f13,0.0121
+f101,0.0106
+f108,0.0063
+f60,0.0057
+f105,0.0044
+f111,0.0043
+f59,0.0043
+f55,0.0036
+f73,0.0031
+f109,0.003
+
+arp_mitm: clock ROC-AUC 0.996 (107 s)
+active_wiretap: clock ROC-AUC 0.982 (104 s)
+fuzzing: clock ROC-AUC 0.906 (103 s)
+mirai_botnet: clock ROC-AUC 0.599 (112 s)
+os_scan: clock ROC-AUC 0.902 (104 s)
+ssdp_flood: clock ROC-AUC 0.857 (101 s)
+ssl_renegotiation: clock ROC-AUC 0.123 (100 s)
+syn_dos: clock ROC-AUC 0.991 (99 s)
+video_injection: clock ROC-AUC 0.783 (102 s)
+### CLOCK_AUC
+attack,clock_roc_auc
+arp_mitm,0.9957688197000001
+active_wiretap,0.9821081588
+fuzzing,0.90605048985
+mirai_botnet,0.5988397316926113
+os_scan,0.90231765375
+ssdp_flood,0.8571276597
+ssl_renegotiation,0.12322835065000001
+syn_dos,0.9906727923499999
+video_injection,0.7826348069
+
+CPU times: user 11.5 s, sys: 1.47 s, total: 13 s
+Wall time: 21min 24s
++-----------------+------+------+
+|           attack|     0|     1|
++-----------------+------+------+
+|   active_wiretap|100000|100000|
+|         arp_mitm|100000|100000|
+|          fuzzing|100000|100000|
+|     mirai_botnet|100000|100000|
+|          os_scan|100000| 65700|
+|       ssdp_flood|100000|100000|
+|ssl_renegotiation|100000| 92652|
+|          syn_dos|100000|  7038|
+|  video_injection|100000|100000|
++-----------------+------+------+
+
+### ATTACK_IMPORTANCE
+,importance
+f76,0.2062
+f79,0.1054
+f64,0.0962
+f83,0.0806
+f62,0.0444
+f78,0.0434
+f108,0.0417
+f61,0.0415
+f75,0.0348
+f63,0.0327
+f29,0.0257
+f21,0.0237
+f60,0.0213
+f97,0.02
+f34,0.0153
+f58,0.0146
+f28,0.0138
+f110,0.0132
+f59,0.0124
+f12,0.0122
+f90,0.0094
+f0,0.0086
+f27,0.008
+f38,0.0074
+f3,0.0068
+
+### OVERLAP The 10 top clock features have 59.7% of the attack model importance.
+CPU times: user 559 ms, sys: 172 ms, total: 732 ms
+Wall time: 5min 56s
+26/11/25 20:47:47 WARN JavaUtils: Attempt to delete using native Unix OS command failed for path = /tmp/spark-47ad4210-fd01-488a-953a-e85bd7bae5c3/userFiles-3f987401-9fbc-4688-bfb4-3d0233f4a26e. Falling back to Java IO way
+java.io.IOException: Failed to delete: /tmp/spark-47ad4210-fd01-488a-953a-e85bd7bae5c3/userFiles-3f987401-9fbc-4688-bfb4-3d0233f4a26e
+	at org.apache.spark.network.util.JavaUtils.deleteRecursivelyUsingUnixNative(JavaUtils.java:199)
+	at org.apache.spark.network.util.JavaUtils.deleteRecursively(JavaUtils.java:116)
+	at org.apache.spark.network.util.JavaUtils.deleteRecursively(JavaUtils.java:94)
+	at org.apache.spark.util.SparkFileUtils.deleteRecursively(SparkFileUtils.scala:121)
+	at org.apache.spark.util.SparkFileUtils.deleteRecursively$(SparkFileUtils.scala:120)
+	at org.apache.spark.util.Utils$.deleteRecursively(Utils.scala:1048)
+	at org.apache.spark.SparkEnv.stop(SparkEnv.scala:131)
+	at org.apache.spark.SparkContext.$anonfun$stop$25(SparkContext.scala:2395)
+	at org.apache.spark.util.Utils$.tryLogNonFatalError(Utils.scala:1300)
+	at org.apache.spark.SparkContext.stop(SparkContext.scala:2395)
+	at org.apache.spark.SparkContext.stop(SparkContext.scala:2297)
+	at org.apache.spark.SparkContext.$anonfun$new$36(SparkContext.scala:704)
+	at org.apache.spark.util.SparkShutdownHook.run(ShutdownHookManager.scala:231)
+	at org.apache.spark.util.SparkShutdownHookManager.$anonfun$runAll$2(ShutdownHookManager.scala:205)
+	at scala.runtime.java8.JFunction0$mcV$sp.apply(JFunction0$mcV$sp.scala:18)
+	at org.apache.spark.util.Utils$.logUncaughtExceptions(Utils.scala:1937)
+	at org.apache.spark.util.SparkShutdownHookManager.$anonfun$runAll$1(ShutdownHookManager.scala:205)
+	at scala.runtime.java8.JFunction0$mcV$sp.apply(JFunction0$mcV$sp.scala:18)
+	at scala.util.Try$.apply(Try.scala:217)
+	at org.apache.spark.util.SparkShutdownHookManager.runAll(ShutdownHookManager.scala:205)
+	at org.apache.spark.util.SparkShutdownHookManager$$anon$2.run(ShutdownHookManager.scala:184)
+	at java.base/java.util.concurrent.Executors$RunnableAdapter.call(Executors.java:572)
+	at java.base/java.util.concurrent.FutureTask.run(FutureTask.java:317)
+	at java.base/java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1144)
+	at java.base/java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:642)
+	at java.base/java.lang.Thread.run(Thread.java:1583)
+/usr/local/lib/python3.13/dist-packages/mistune.py:435: SyntaxWarning: invalid escape sequence '\|'
+  cells[i][c] = re.sub('\\\\\|', '|', cell)
+/usr/local/lib/python3.13/dist-packages/nbconvert/filters/filter_links.py:36: SyntaxWarning: invalid escape sequence '\_'
+  text = re.sub(r'_', '\_', text) # Escape underscores in display text
+[NbConvertApp] Converting notebook __notebook__.ipynb to notebook
+[NbConvertApp] Writing 21609 bytes to __notebook__.ipynb
+[NbConvertApp] Converting notebook __notebook__.ipynb to html
+[NbConvertApp] Writing 324247 bytes to __results__.html
