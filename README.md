@@ -51,8 +51,12 @@ pip install -r requirements-serve.txt
 The dashboard replays recorded packets. These packets are a part of the Kitsune dataset, so
 they are not in this repository. Put them in the folder `demo_data/` in one of two ways:
 
-- **From your Kaggle run of notebook 02:** open the notebook on Kaggle, go to its output,
-  download the folder `baseline/demo`, and copy its nine files to `demo_data/`.
+- **From the Kaggle run of notebook 02 (all nine recordings, 27 MB):** the files are in the
+  output of the Kaggle notebook `foxtrack-02-baseline-anomaly`, in the folder
+  `baseline/demo`. Open the notebook on Kaggle, select **Output**, download the nine `.npz`
+  files of that folder, and copy them to `demo_data/`. The notebook is in the Kaggle
+  account of the project owner, so you need access to it. If you run notebook 02 in your
+  own account, the same folder is in your own output.
 - **From the public dataset:** download the two files of a recording from the
   [dataset page](https://www.kaggle.com/datasets/ymirsky/network-attack-dataset-kitsune)
   into a folder with the same name as on Kaggle, then build the demo file. Mirai is the
