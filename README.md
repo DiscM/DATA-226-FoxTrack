@@ -139,15 +139,19 @@ The training runs on Kaggle, because the dataset is already there and a Kaggle N
 
 | Notebook | Input | Purpose | Run time |
 |---|---|---|---|
-| `01_kaggle_setup_etl` | The Kitsune dataset | Convert the CSV files to Parquet with Spark | not recorded |
+| `01_kaggle_setup_etl` | The Kitsune dataset | Convert the CSV files to Parquet with Spark | 12 minutes |
 | `02_baseline_anomaly` | Output of notebook 01 | Train and evaluate the baseline; export the models | 11 to 14 minutes |
 | `03_supervised_leave_one_out` | Output of notebook 01 | Train and evaluate the supervised models | 48 minutes |
 | `04_time_confound_test` | Output of notebook 01 | Test if the supervised models learned the time | 27 to 42 minutes |
+
+You do not need to run the notebooks to see their results. The folder `notebooks/executed/`
+has each notebook with the output of its Kaggle run. GitHub shows them in the browser.
 
 ### Repository layout
 
 ```
 notebooks/               the four Kaggle notebooks
+notebooks/executed/      the same notebooks with the output of their Kaggle runs
 src/foxtrack/etl.py          CSV to Parquet with Spark
 src/foxtrack/split.py        train, calibration, and test ranges
 src/foxtrack/anomaly.py      baseline model: scaler and PCA (Spark MLlib)

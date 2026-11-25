@@ -3,6 +3,26 @@
 This file is the record of each run on Kaggle, the code version that it used, and what it
 showed. All times are UTC. All runs used a Kaggle CPU notebook (4 cores, 30 GB RAM).
 
+## Notebooks with their run output
+
+The folder `notebooks/executed/` has the six Kaggle notebooks as Kaggle ran them, with the
+output of each cell. The Kaggle username in file paths is replaced with `<kaggle-user>`.
+
+| File | Run in the table below |
+|---|---|
+| `01_kaggle_setup_etl_run.ipynb` | 1 |
+| `02_baseline_anomaly_run.ipynb` | 10 |
+| `03_supervised_leave_one_out_run.ipynb` | 3 |
+| `04_time_confound_test_clock_run.ipynb` | 4 |
+| `04_time_confound_test_time_matched_run.ipynb` | 5 |
+| `04_time_confound_test_drop_clock_run.ipynb` | 6 |
+
+Runs 3 to 6 used the code before the event count and the placebo test were added. Their
+tables thus have fewer columns than the tables of run 10.
+
+Notebook 01 read 59.7 GB of feature files and wrote 6.4 GB of Parquet data
+(21,017,597 rows).
+
 ## How to verify a result
 
 Each result has four records that agree with each other:
@@ -24,7 +44,7 @@ dataset `ymirsky/network-attack-dataset-kitsune` (notebook 01) or the output of 
 
 | # | Kaggle notebook | Version | Code commit | Completed | Run time | Log | Result table |
 |---|---|---|---|---|---|---|---|
-| 1 | Notebook 01 (ETL), run by the project owner | - | 538bbc5 or later | 2026-11-21 23:02 | not recorded | not copied | `summary.json` in the Kaggle output |
+| 1 | Notebook 01 (ETL), run by the project owner | 3 | 538bbc5 or later | 2026-11-21 23:02 | 11 min 39 s | see `notebooks/executed/` | `summary.json` in the Kaggle output |
 | 2 | `foxtrack-02-baseline-anomaly` | 1 | e373171 | 2026-11-21 23:52 | 12 min 34 s | `02_baseline_v1.log` | replaced by run 9 (see git history of `baseline_pca.csv`) |
 | 3 | `foxtrack-03-supervised-leave-one-out` | 1 | 91c856c | 2026-11-22 00:36 | 47 min 50 s | `03_supervised_v1.log` | `supervised_leave_one_out.csv` |
 | 4 | `foxtrack-04-confound-clock` | 1 | e6f9ea8 | 2026-11-22, before 01:37 | 26 min 40 s | `04_confound_clock_v1.log` | `clock_auc.csv` |
