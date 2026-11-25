@@ -70,6 +70,7 @@
     <label>Target false positive rate <select id="fpr"></select></label>
     <button id="play" type="button">Replay</button>
   </div>
+  <p id="source" class="sub" style="margin:-6px 0 14px"></p>
   <p id="error" class="error" role="alert"></p>
 
   <div class="card">
@@ -132,6 +133,11 @@ function setOptions(select, items, current) {
 }
 function fillSettings() {
   const m = models.find((x) => x.name === $("model").value);
+  // Where the service got this model: a file, or a run of the MLflow record.
+  const src = m.source || { type: "file" };
+  $("source").textContent = src.type === "mlflow"
+    ? "Model from MLflow: experiment " + src.experiment + ", run " + src.run_id.slice(0, 8) + " (" + new Date(src.run_start_ms).toISOString().slice(0, 16).replace("T", " ") + " UTC)"
+    : "Model from a file in models/pca_baseline";
   const rules = [...new Set(m.settings.map((s) => s.alert_rule))];
   const fprs = [...new Set(m.settings.map((s) => s.target_fpr))].sort((a, b) => a - b);
   const names = { "threshold": "Threshold (one packet)", "mean of 100": "Mean of the last 100 packets" };

@@ -44,7 +44,7 @@ def client(tmp_path_factory):
 
 
 def test_health_and_models(client):
-    assert client.get("/api/health").json() == {"status": "ok", "models": 1, "sessions": 0}
+    assert client.get("/api/health").json() == {"status": "ok", "models": 1, "sessions": 0, "model_source": "file"}
     models = client.get("/api/models").json()
     assert models[0]["name"] == "mirai_botnet" and models[0]["title"] == "Mirai"
     assert models[0]["has_demo"] and models[0]["n_features"] == N_FEATURES
@@ -101,3 +101,72 @@ def test_results_table(client):
     assert len(rows) == 1 and rows[0]["delay_packets"] == 42.0 and rows[0]["delay_credible"] is True
     other = client.get("/api/results", params={"alert_rule": "threshold", "target_fpr": 0.001}).json()
     assert other[0]["delay_packets"] is None
+
+
+# ---- Models from an MLflow record ----
+
+@pytest.fixture(scope="module")
+def mlflow_record(tmp_path_factory):
+    """A small MLflow record with the layout of a Kaggle run: mlflow.db and mlruns/."""
+    mlflow = pytest.importorskip("mlflow")
+    root = tmp_path_factory.mktemp("mlflow_record")
+    work = tmp_path_factory.mktemp("training_machine")   # the place of the files at training time
+    rng = np.random.default_rng(3)
+
+    def model_dict(name, threshold):
+        q, _ = np.linalg.qr(rng.normal(size=(N_FEATURES, 2)))
+        return {"name": name, "kind": "pca_reconstruction_error", "n_features": N_FEATURES, "k_components": 2,
+                "mean": [0.0] * N_FEATURES, "std": [1.0] * N_FEATURES, "components": q.T.tolist(),
+                "thresholds": [{"target_fpr": 1e-4, "alert_rule": "mean of 100", "smooth_window": 100, "k": 1, "n": 1,
+                                "threshold": threshold}], "trained_on": {}}
+
+    mlflow.set_tracking_uri(f"sqlite:///{work}/mlflow.db")
+    mlflow.create_experiment("baseline_pca_onset", artifact_location=str(work / "mlruns" / "1"))
+    mlflow.set_experiment("baseline_pca_onset")
+    # Two runs for os_scan: the service must select the newer one (threshold 0.9).
+    for name, threshold in (("os_scan", 0.1), ("mirai_botnet", 0.5), ("os_scan", 0.9)):
+        path = work / f"{name}.json"
+        path.write_text(json.dumps(model_dict(name, threshold)))
+        with mlflow.start_run(run_name=name):
+            mlflow.log_params({"attack": name, "k_components": 2})
+            mlflow.log_artifact(str(path), artifact_path="model")
+    with mlflow.start_run(run_name="no_model"):
+        mlflow.log_param("note", "a run with no attack and no model")
+    # Move the record to a different folder, as after a download from Kaggle.
+    import shutil
+    shutil.copy(work / "mlflow.db", root / "mlflow.db")
+    shutil.copytree(work / "mlruns", root / "mlruns")
+    shutil.rmtree(work)
+    return root
+
+
+def test_models_from_mlflow_record(mlflow_record, tmp_path):
+    from foxtrack.serving.mlflow_store import load_models
+    before = (mlflow_record / "mlflow.db").read_bytes()
+    models = load_models(mlflow_record)
+    assert list(models) == ["mirai_botnet", "os_scan"]
+    assert models["os_scan"].threshold("mean of 100", 1e-4) == 0.9   # the newer run
+    assert models["os_scan"].source["type"] == "mlflow" and len(models["os_scan"].source["run_id"]) == 32
+    assert models["os_scan"].source["params"]["attack"] == "os_scan"
+    assert (mlflow_record / "mlflow.db").read_bytes() == before      # the record is not changed
+
+    app = create_app(tmp_path / "no_models", tmp_path / "no_demo", tmp_path / "none.csv", mlflow_dir=mlflow_record)
+    client = TestClient(app)
+    assert client.get("/api/health").json()["model_source"] == "mlflow"
+    listed = {m["name"]: m for m in client.get("/api/models").json()}
+    assert listed["mirai_botnet"]["source"]["experiment"] == "baseline_pca_onset"
+    row = [0.0] * N_FEATURES
+    assert client.post("/api/predict", json={"model": "os_scan", "rows": [row]}).status_code == 200
+
+
+def test_mlflow_record_errors(mlflow_record, tmp_path):
+    from foxtrack.serving.mlflow_store import load_models
+    with pytest.raises(FileNotFoundError, match="No MLflow database"):
+        load_models(tmp_path)
+    with pytest.raises(ValueError, match="no experiment"):
+        load_models(mlflow_record, experiment="other")
+    import shutil
+    broken = tmp_path / "broken"; broken.mkdir()
+    shutil.copy(mlflow_record / "mlflow.db", broken / "mlflow.db")
+    with pytest.raises(FileNotFoundError, match="has no model file"):
+        load_models(broken)

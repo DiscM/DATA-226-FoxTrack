@@ -9,3 +9,6 @@ __pycache__/
 venv/
 mlflow.db
 demo_data/
+# The MLflow record of the final baseline run is a part of the repository.
+!results/mlflow/baseline/mlflow.db
+!results/mlflow/baseline/mlruns/

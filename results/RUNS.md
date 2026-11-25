@@ -86,9 +86,10 @@ example Mirai 42 packets and OS Scan 30 packets, rule "mean of 100", target rate
 - **Score for each packet** (45 Parquet files, approximately 335 MB). They are in the
   output of the Kaggle notebooks, folders `baseline/scores`, `supervised/scores`, and
   `confound/scores`. The figure and `auc_by_attack.csv` come from these files.
-- **MLflow records.** Each Kaggle run has a file `mlflow.db` in its output. The record of run 9
-  is in this repository: `results/mlflow/baseline_pca_run9.db`, with a CSV summary. The records
-  of the other runs are only on Kaggle.
+- **MLflow records.** Each Kaggle run has a file `mlflow.db` in its output. The record of
+  run 10 is in this repository, in `results/mlflow/baseline/`: the database, the model file
+  of each run (`mlruns/`), and a CSV summary. The service can load its models from it. The
+  files in `models/pca_baseline/` are copies of the model files of this record.
 - **The Parquet data** (21.0 million packets). It is the output of notebook 01.
 
 ## Analyses outside the Kaggle runs

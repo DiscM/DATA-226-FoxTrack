@@ -113,7 +113,28 @@ Example:
 curl -s http://127.0.0.1:8000/api/demo/mirai_botnet | python -c "import sys, json; print(json.load(sys.stdin)['summary'])"
 ```
 
-### 3. Run the tests
+### 3. Use the models of the MLflow record
+
+MLflow is the link between training and deployment. Each training run on Kaggle records its
+parameters, its metrics, and its trained model in MLflow. The service can take its models
+from that record:
+
+```bash
+pip install mlflow
+```
+
+```bash
+FOXTRACK_MLFLOW_DIR=results/mlflow/baseline uvicorn foxtrack.api.app:app --app-dir src
+```
+
+The service then selects the newest completed run of each attack. `GET /api/models` and the
+dashboard show the MLflow run of each model. With no `FOXTRACK_MLFLOW_DIR`, the service
+reads the model files in `models/pca_baseline/`, which are copies of the same models.
+
+To use the models of a new training run, download `mlflow.db` and the folder `mlruns` from
+the output of notebook 02, put them in one folder, and set `FOXTRACK_MLFLOW_DIR` to it.
+
+### 4. Run the tests
 
 The tests need Java 17 or later, because some of them start Spark.
 
@@ -127,7 +148,7 @@ pytest
 
 There are 67 tests.
 
-### 4. Train the models again
+### 5. Train the models again
 
 The training runs on Kaggle, because the dataset is already there and a Kaggle Notebook has
 30 GB of memory at no cost.
@@ -157,7 +178,7 @@ src/foxtrack/split.py        train, calibration, and test ranges
 src/foxtrack/anomaly.py      baseline model: scaler and PCA (Spark MLlib)
 src/foxtrack/supervised.py   logistic regression and gradient-boosted trees
 src/foxtrack/metrics.py      delay, alert rules, false alarm events, credibility, placebo
-src/foxtrack/serving/        the trained detector in NumPy, for the service
+src/foxtrack/serving/        the trained detector in NumPy, and the loader for an MLflow record
 src/foxtrack/demo.py         builds the demo packets from downloaded dataset files
 src/foxtrack/api/            the FastAPI service and the dashboard page
 models/pca_baseline/     nine trained models
@@ -465,10 +486,12 @@ A production system would need:
 - `results/RUNS.md` lists each Kaggle run: the notebook version, the code version, the run
   time, the log, and the corrections that later results made.
 - `results/logs/` has a copy of the Kaggle log of each run.
-- `results/mlflow/` has the MLflow record of the final baseline run. To open it:
+- `results/mlflow/baseline/` has the MLflow record of the final baseline run: the database,
+  the model file of each run, and a CSV summary. The service can load its models from it
+  (see Quick start, step 3). To open the record in the MLflow page:
 
 ```bash
-mlflow ui --backend-store-uri sqlite:///results/mlflow/baseline_pca_run9.db
+mlflow ui --backend-store-uri sqlite:///results/mlflow/baseline/mlflow.db
 ```
 
 - The score for each packet (335 MB) and the Parquet data stay in the output of the Kaggle

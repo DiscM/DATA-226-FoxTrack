@@ -23,6 +23,7 @@ class PcaModel:
         self.components = np.asarray(components, dtype=np.float64)  # (k, n_features)
         self.thresholds = thresholds
         self.trained_on = trained_on or {}
+        self.source = {"type": "file"}   # where the service got this model
         if self.components.shape[1] != self.mean.size or self.std.size != self.mean.size:
             raise ValueError("The model arrays do not have the same number of features")
 

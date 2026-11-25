@@ -6,7 +6,13 @@ Start it from the repository root:
 
 Then open http://127.0.0.1:8000 for the dashboard, or /docs for the API.
 
-The service loads one trained model for each recording from ``models/pca_baseline``.
+The service loads one trained model for each recording. There are two sources:
+
+- ``models/pca_baseline`` (the default): one JSON file for each model.
+- An MLflow record: set ``FOXTRACK_MLFLOW_DIR`` to a folder with ``mlflow.db`` and
+  ``mlruns/``. The service then selects the newest completed run of each attack, and
+  ``GET /api/models`` states the MLflow run of each model. This needs the package mlflow.
+
 Scoring uses NumPy only. Spark is necessary only for training.
 """
 
@@ -77,12 +83,20 @@ def _number(text: str):
         return text
 
 
-def create_app(models_dir: Path | None = None, demo_dir: Path | None = None, results_csv: Path | None = None) -> FastAPI:
+def create_app(models_dir: Path | None = None, demo_dir: Path | None = None, results_csv: Path | None = None,
+               mlflow_dir: Path | None = None) -> FastAPI:
     models_dir = Path(models_dir or os.environ.get("FOXTRACK_MODELS_DIR", REPO / "models" / "pca_baseline"))
+    mlflow_dir = mlflow_dir or os.environ.get("FOXTRACK_MLFLOW_DIR")
     demo_dir = Path(demo_dir or os.environ.get("FOXTRACK_DEMO_DIR", REPO / "demo_data"))
     results_csv = Path(results_csv or os.environ.get("FOXTRACK_RESULTS_CSV", REPO / "results" / "baseline_pca.csv"))
 
-    models = {p.stem: PcaModel.load(p) for p in sorted(models_dir.glob("*.json"))}
+    if mlflow_dir:
+        from foxtrack.serving.mlflow_store import load_models
+        models = load_models(mlflow_dir)
+        model_source = "mlflow"
+    else:
+        models = {p.stem: PcaModel.load(p) for p in sorted(models_dir.glob("*.json"))}
+        model_source = "file"
     sessions: OrderedDict[str, OnlineDetector] = OrderedDict()
 
     app = FastAPI(
@@ -121,7 +135,7 @@ def create_app(models_dir: Path | None = None, demo_dir: Path | None = None, res
 
     @app.get("/api/health")
     def health():
-        return {"status": "ok", "models": len(models), "sessions": len(sessions)}
+        return {"status": "ok", "models": len(models), "sessions": len(sessions), "model_source": model_source}
 
     @app.get("/api/models")
     def list_models():
@@ -134,6 +148,7 @@ def create_app(models_dir: Path | None = None, demo_dir: Path | None = None, res
                 "k_components": int(model.components.shape[0]),
                 "settings": model.settings(),
                 "trained_on": model.trained_on,
+                "source": model.source,
                 "has_demo": demo_path(name).exists(),
             }
             for name, model in models.items()
